@@ -4,7 +4,7 @@ import time
 import urllib.parse
 
 from hacker_soft.core.logging import ScanLogger
-from hacker_soft.core.models import Confidence, Finding, ModuleResult, ScanContext, Severity
+from hacker_soft.core.models import Category, Confidence, Finding, ModuleResult, ScanContext, Severity
 from hacker_soft.core.module import ScannerModule
 from hacker_soft.core.net import fetch_json, resolve_host
 
@@ -50,6 +50,7 @@ class CertificateTransparencyModule(ScannerModule):
                     module=self.name,
                     title="Часть Certificate Transparency источников недоступна",
                     severity=Severity.INFO,
+                    category=Category.DIAGNOSTIC,
                     confidence=Confidence.HIGH,
                     target=domain,
                     evidence={"source_errors": source_errors, "source_counts": source_counts},
@@ -65,7 +66,8 @@ class CertificateTransparencyModule(ScannerModule):
                 Finding(
                     module=self.name,
                     title="Большая внешняя зона поддоменов",
-                    severity=Severity.LOW,
+                    severity=Severity.INFO,
+                    category=Category.INVENTORY,
                     confidence=Confidence.HIGH,
                     target=domain,
                     evidence={"subdomain_count": len(names), "source_counts": source_counts},
@@ -86,6 +88,7 @@ class CertificateTransparencyModule(ScannerModule):
                     module=self.name,
                     title="В Certificate Transparency есть неразрешающиеся хосты",
                     severity=Severity.INFO,
+                    category=Category.INVENTORY,
                     confidence=Confidence.MEDIUM,
                     target=domain,
                     evidence={"sample": unresolved[:25], "count": len(unresolved)},

@@ -5,6 +5,7 @@ import json
 import os
 import re
 import socket
+import time
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -12,7 +13,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote, urljoin, urlparse, urlunparse, urldefrag
 
-from hacker_soft.core.models import Confidence, Finding, ModuleResult, ScanContext, Severity
+from hacker_soft.core.models import Category, Confidence, Finding, ModuleResult, ScanContext, Severity
 from hacker_soft.core.module import ScannerModule
 from hacker_soft.core.net import USER_AGENT, run_tool
 
@@ -37,6 +38,16 @@ RISKY_PORTS = {
 }
 
 CONTROL_PORTS = [1, 2, 3, 7, 9, 13, 37, 79, 81, 82, 999, 1234, 4444, 10001, 23456, 34567, 45678, 65000]
+NOISY_PORT_THRESHOLD = 30
+CONTROL_PROBE_MIN_PORTS = 5
+CLIENT_PROBES = (b"\r\n", b"GET / HTTP/1.0\r\n\r\n")
+NUCLEI_BATCH_SIZE = 15
+NUCLEI_MIN_BATCH_TIMEOUT = 120
+NUCLEI_SEVERITY_PASSES = (("critical-high", "critical,high"), ("medium-low", "medium,low"))
+KATANA_ENDPOINT_LIMIT = 5000
+NUCLEI_TEMPLATES_ENV = "HACKER_SOFT_NUCLEI_TEMPLATES"
+NUCLEI_TEMPLATE_DIRS = ("/opt/nuclei-templates",)
+NUCLEI_MIN_TEMPLATES = 50
 DOCUMENT_EXTENSIONS = {"pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "rtf", "odt", "ods", "odp", "zip", "rar", "7z"}
 DOCUMENT_CONTENT_TYPES = (
     "application/pdf",
@@ -223,6 +234,7 @@ class ProjectDiscoveryModule(ScannerModule):
                         module=self.name,
                         title="Технологии веб-сервиса определены через httpx",
                         severity=Severity.INFO,
+                        category=Category.INVENTORY,
                         confidence=Confidence.MEDIUM,
                         target=url,
                         evidence={"tech": tech, "title": item.get("title"), "status": item.get("status_code")},
@@ -240,7 +252,8 @@ class ProjectDiscoveryModule(ScannerModule):
                 Finding(
                     module=self.name,
                     title="Поддомены найдены, но живые HTTP(S)-сервисы не подтвердились",
-                    severity=Severity.LOW,
+                    severity=Severity.INFO,
+                    category=Category.DIAGNOSTIC,
                     confidence=Confidence.MEDIUM,
                     target=context.target.domain,
                     evidence={"subdomains": len(context.subdomains), "checked_hosts": len(hosts)},
@@ -279,8 +292,8 @@ class ProjectDiscoveryModule(ScannerModule):
             result.errors.append(f"naabu завершился ошибкой: {stderr.strip()[:500]}")
             return
 
-        count = 0
-        port_details: dict[str, list[int]] = {}
+        reported_count = 0
+        port_details: dict[str, set[int]] = {}
         for line in stdout.splitlines():
             item = parse_json_line(line)
             if not item:
@@ -293,88 +306,82 @@ class ProjectDiscoveryModule(ScannerModule):
                 port_number = int(port)
             except (TypeError, ValueError):
                 continue
-            context.open_ports.setdefault(host, set()).add(port_number)
-            port_details.setdefault(host, []).append(port_number)
-            count += 1
-        if count:
+            port_details.setdefault(host, set()).add(port_number)
+            reported_count += 1
+
+        result.artifacts["naabu_reported_ports"] = reported_count
+        result.artifacts["naabu_reported_ports_by_host"] = {
+            host: sorted(ports) for host, ports in sorted(port_details.items())
+        }
+
+        noisy_hosts = detect_noisy_hosts(port_details)
+        verifiable = {host: sorted(ports) for host, ports in port_details.items() if host not in noisy_hosts}
+        banner_checks = collect_port_banners(verifiable) if verifiable else {}
+        result.artifacts["port_banner_checks"] = banner_checks
+
+        confirmed_ports: dict[str, list[int]] = {}
+        unconfirmed_ports: dict[str, list[int]] = {}
+        for host, ports in sorted(verifiable.items()):
+            for port in ports:
+                if banner_checks.get(host, {}).get(str(port), {}).get("banner_found"):
+                    confirmed_ports.setdefault(host, []).append(port)
+                else:
+                    unconfirmed_ports.setdefault(host, []).append(port)
+        for host in noisy_hosts:
+            unconfirmed_ports[host] = sorted(port_details[host])
+
+        for host, ports in confirmed_ports.items():
+            context.open_ports.setdefault(host, set()).update(ports)
+
+        confirmed_count = sum(len(ports) for ports in confirmed_ports.values())
+        unconfirmed_count = sum(len(ports) for ports in unconfirmed_ports.values())
+        result.artifacts["confirmed_ports"] = confirmed_ports
+        result.artifacts["confirmed_port_count"] = confirmed_count
+        result.artifacts["unconfirmed_port_count"] = unconfirmed_count
+        result.artifacts["open_ports_without_banners"] = unconfirmed_ports
+
+        if confirmed_count:
             result.findings.append(
                 Finding(
                     module=self.name,
-                    title="naabu нашел открытые порты",
+                    title="Подтвержденные открытые порты",
                     severity=Severity.INFO,
+                    category=Category.INVENTORY,
                     confidence=Confidence.HIGH,
                     target=context.target.domain,
-                    evidence={"count": count},
-                    recommendation="Сверь порты с картой периметра и смотри отдельный блок banner checks: риск выставляется только там, где сервис ответил баннером.",
-                    explanation="naabu увидел порты, на которых TCP-connect выглядит успешным.",
-                    impact="Без баннера это еще не подтверждает конкретный сервис: так может вести себя firewall, proxy, tarpit или сервис, который молчит до корректного handshake.",
-                    fix="Закрывать как уязвимость только подтвержденные сервисы; неподтвержденные порты перепроверить nmap -sV или ручным клиентом.",
+                    evidence={
+                        "confirmed_ports": confirmed_ports,
+                        "confirmed_count": confirmed_count,
+                        "reported_by_naabu": reported_count,
+                    },
+                    recommendation="Сверь подтвержденные сервисы с картой периметра и убедись, что у каждого есть владелец и причина быть публичным.",
+                    explanation="На этих портах сервис ответил баннером или откликнулся на пробный запрос, поэтому они считаются реальной поверхностью атаки.",
+                    impact="Каждый публичный сервис нужно обновлять и контролировать: это точки входа, доступные из интернета.",
+                    fix="Оставить публичными только нужные сервисы, остальное закрыть firewall, VPN или allowlist.",
                 )
             )
-        result.artifacts["naabu_open_ports"] = count
-        result.artifacts["naabu_open_ports_by_host"] = {host: sorted(set(ports)) for host, ports in port_details.items()}
-        banner_checks = collect_port_banners(port_details)
-        result.artifacts["port_banner_checks"] = banner_checks
-        no_banner_ports = {
-            host: sorted(int(port) for port, banner in ports.items() if not banner.get("banner_found"))
-            for host, ports in banner_checks.items()
-        }
-        no_banner_ports = {host: ports for host, ports in no_banner_ports.items() if ports}
-        if no_banner_ports:
-            result.artifacts["open_ports_without_banners"] = no_banner_ports
+
+        if unconfirmed_ports:
             result.findings.append(
                 Finding(
                     module=self.name,
                     title="Открытые TCP-порты без подтвержденного баннера",
                     severity=Severity.INFO,
+                    category=Category.DIAGNOSTIC,
                     confidence=Confidence.MEDIUM,
                     target=context.target.domain,
-                    evidence={"hosts": no_banner_ports},
+                    evidence={
+                        "hosts": unconfirmed_ports,
+                        "count": unconfirmed_count,
+                        "note": "Эти порты исключены из списка активов и не считаются подтвержденной поверхностью атаки.",
+                    },
                     recommendation="Не считать эти порты уязвимостью без дополнительного подтверждения сервиса. При необходимости перепроверить nmap -sV или ручным клиентом.",
-                    explanation="TCP-соединение установилось, но сервис не прислал баннер или распознаваемый ответ.",
+                    explanation="TCP-соединение установилось, но сервис не прислал баннер и не ответил на пробный запрос.",
                     impact="Такой порт может быть реальным сервисом, firewall/tarpit/proxy-ответом или сервисом, который молчит до корректного клиентского handshake.",
                     fix="Оставить как информационную находку до подтверждения конкретного сервиса и владельца.",
                 )
             )
-        risky_by_host: dict[str, dict[str, dict[str, str]]] = {}
-        max_severity = Severity.INFO
-        for host, ports in sorted(port_details.items()):
-            risky_ports = {}
-            for port in sorted(set(ports)):
-                if port not in RISKY_PORTS:
-                    continue
-                banner = banner_checks.get(host, {}).get(str(port), {})
-                if not banner.get("banner_found"):
-                    continue
-                service, severity, reason = RISKY_PORTS[port]
-                risky_ports[str(port)] = {
-                    "service": service,
-                    "reason": reason,
-                    "banner": str(banner.get("banner") or ""),
-                }
-                max_severity = highest_severity(max_severity, severity)
-            if risky_ports:
-                risky_by_host[host] = risky_ports
 
-        noisy_hosts = {
-            host: {
-                "reason": "too_many_open_ports",
-                "open_port_count": len(set(ports)),
-                "sample": sorted(set(ports))[:30],
-            }
-            for host, ports in port_details.items()
-            if len(set(ports)) >= 30
-        }
-        for host, ports in sorted(port_details.items()):
-            if host in noisy_hosts or len(set(ports)) < 5:
-                continue
-            control_evidence = probe_accept_all_host(host, set(ports))
-            if control_evidence:
-                noisy_hosts[host] = {
-                    "reason": "control_ports_also_open",
-                    "open_ports": sorted(set(ports)),
-                    **control_evidence,
-                }
         if noisy_hosts:
             result.artifacts["naabu_noisy_hosts"] = noisy_hosts
             result.findings.append(
@@ -382,32 +389,53 @@ class ProjectDiscoveryModule(ScannerModule):
                     module=self.name,
                     title="Результат port scan выглядит шумным и требует перепроверки",
                     severity=Severity.INFO,
+                    category=Category.DIAGNOSTIC,
                     confidence=Confidence.MEDIUM,
                     target=context.target.domain,
-                    evidence=result.artifacts["naabu_noisy_hosts"],
+                    evidence=noisy_hosts,
                     recommendation="Перепроверь порты баннер-грабом или nmap -sV с небольшой скоростью перед тем, как считать их реальной поверхностью атаки.",
                     explanation="Сканер увидел слишком много открытых top-портов на одном host, что часто бывает из-за tarpitting, firewall/proxy-ответов или сетевых особенностей.",
-                    impact="Отчет может завысить риск и показать как открытые порты, которые на самом деле не ведут к рабочим сервисам.",
+                    impact="Порты таких хостов исключены из активов и из оценки риска, чтобы отчет не завышал поверхность атаки.",
                     fix="Запустить ручную проверку ключевых портов и оставить в плане исправлений только подтвержденные сервисы.",
                 )
             )
-            if not risky_by_host:
-                return
+
+        risky_by_host, max_severity = collect_risky_services(confirmed_ports, banner_checks)
         if risky_by_host:
+            infrastructure = collect_host_infrastructure(sorted(risky_by_host), context.target.domain)
+            result.artifacts["risky_host_infrastructure"] = infrastructure
+            third_party = sorted(
+                host for host, item in infrastructure.items() if item.get("third_party_hosting")
+            )
+            all_third_party = bool(third_party) and len(third_party) == len(risky_by_host)
+            impact = (
+                "Подтвержденный публичный сервис базы данных, удаленного доступа или админского API может быть "
+                "критичным риском."
+            )
+            if all_third_party:
+                impact += (
+                    " При этом IP-адреса принадлежат внешнему хостингу, поэтому сервис может относиться к площадке "
+                    "провайдера, а не к вашей инфраструктуре: сначала подтвердите владельца."
+                )
             result.findings.append(
                 Finding(
                     module=self.name,
                     title="Потенциально опасные сетевые сервисы доступны из интернета",
                     severity=max_severity,
-                    confidence=Confidence.HIGH,
+                    confidence=Confidence.MEDIUM if all_third_party else Confidence.HIGH,
                     target=context.target.domain,
-                    evidence={"hosts": risky_by_host, "note": "Риск выставлен только для портов, где удалось получить баннер/ответ сервиса."},
+                    evidence={
+                        "hosts": risky_by_host,
+                        "infrastructure": infrastructure,
+                        "note": "Риск выставлен только для портов, где удалось получить баннер/ответ сервиса.",
+                    },
                     recommendation="Подтверди владельца сервиса и закрой базы данных, админские и remote-access порты через VPN или allowlist.",
                     explanation="Сканер увидел открытые порты и получил баннер/ответ от сервиса на рискованном порту.",
-                    impact="Подтвержденный публичный сервис базы данных, удаленного доступа или админского API может быть критичным риском.",
+                    impact=impact,
                     fix="Проверить владельца каждого порта, подтвердить сервис и ограничить доступ firewall/VPN/private network.",
                 )
             )
+
     def _katana(self, context: ScanContext, result: ModuleResult) -> None:
         urls = sorted(context.live_hosts)[:80]
         if not urls:
@@ -428,6 +456,7 @@ class ProjectDiscoveryModule(ScannerModule):
             str(output_file),
             "-elog",
             str(error_log),
+            "-omit-raw",
         ]
         if context.logger:
             context.logger.info(f"katana output file: {output_file}")
@@ -441,10 +470,11 @@ class ProjectDiscoveryModule(ScannerModule):
         if code == 127:
             result.errors.append("katana не найден")
             return
-        lines = collect_jsonl_lines(stdout, output_file)
+        endpoints, crawl_stats = stream_katana_endpoints(stdout, output_file, context.target.domain)
         result.artifacts["katana_output"] = artifact_info(output_file)
         result.artifacts["katana_error_log"] = artifact_info(error_log)
-        if code != 0 and not lines:
+        result.artifacts["katana_crawl_stats"] = crawl_stats
+        if code != 0 and not endpoints:
             result.errors.append(
                 f"katana завершился ошибкой: {stderr.strip()[:500]}; error_log={error_log}"
             )
@@ -454,14 +484,13 @@ class ProjectDiscoveryModule(ScannerModule):
                 f"katana завершился ошибкой: {stderr.strip()[:500]}, но частичные endpoints сохранены; "
                 f"output={output_file}; error_log={error_log}"
             )
+        if crawl_stats["truncated"]:
+            result.errors.append(
+                f"katana собрал больше {crawl_stats['endpoint_limit']} endpoints, список в отчете обрезан; "
+                f"полная выгрузка осталась в {output_file}"
+            )
 
-        endpoints = set()
-        for line in lines:
-            item = parse_json_line(line)
-            url = (item or {}).get("request", {}).get("endpoint") or (item or {}).get("url") or line.strip()
-            if is_owned_url(url, context.target.domain):
-                endpoints.add(url)
-        context.endpoints.update(sorted(endpoints)[:1000])
+        context.endpoints.update(endpoints)
         result.artifacts["katana_endpoints"] = len(endpoints)
         document_summary = verify_document_summary(
             extract_documents_from_katana(output_file, context.target.domain),
@@ -485,6 +514,7 @@ class ProjectDiscoveryModule(ScannerModule):
                     module=self.name,
                     title="Публичные документы найдены на сайте",
                     severity=Severity.INFO,
+                    category=Category.INVENTORY,
                     confidence=Confidence.HIGH,
                     target=context.target.domain,
                     evidence={
@@ -504,7 +534,8 @@ class ProjectDiscoveryModule(ScannerModule):
                 Finding(
                     module=self.name,
                     title="Большая публичная карта endpoints",
-                    severity=Severity.LOW,
+                    severity=Severity.INFO,
+                    category=Category.INVENTORY,
                     confidence=Confidence.MEDIUM,
                     target=context.target.domain,
                     evidence={"endpoint_count": len(endpoints)},
@@ -519,52 +550,101 @@ class ProjectDiscoveryModule(ScannerModule):
         urls = sorted(context.live_hosts)[:100]
         if not urls:
             return
-        target_file = context.config.out_dir / "nuclei-targets.txt"
-        output_file = context.config.out_dir / "nuclei-output.jsonl"
-        error_log = context.config.out_dir / "nuclei-errors.log"
-        trace_log = context.config.out_dir / "nuclei-trace.log"
-        stdout_log = context.config.out_dir / "nuclei-stdout.log"
-        stderr_log = context.config.out_dir / "nuclei-stderr.log"
-        target_file.write_text("\n".join(urls) + "\n", encoding="utf-8")
-        args = [
-            "nuclei",
-            "-list",
-            str(target_file),
-            "-severity",
-            "low,medium,high,critical",
-            "-jsonl",
-            "-jsonl-export",
-            str(output_file),
-            "-silent",
-            "-rate-limit",
-            "25",
-            "-elog",
-            str(error_log),
-            "-tlog",
-            str(trace_log),
-            "-hm",
-            "-stats",
-            "-stats-interval",
-            "30",
+
+        templates = find_nuclei_templates()
+        result.artifacts["nuclei_templates"] = templates
+        if not templates["ready"]:
+            result.errors.append(
+                "nuclei: набор шаблонов не установлен, проверки уязвимостей не выполнялись; "
+                f"искали в {', '.join(templates['searched'])}; "
+                f"поставить шаблоны можно командой 'nuclei -update-templates' или пересборкой Docker-образа"
+            )
+            if context.logger:
+                context.logger.error("nuclei skipped: templates not installed")
+            return
+
+        out_dir = context.config.out_dir
+        merged_output = out_dir / "nuclei-output.jsonl"
+        error_log = out_dir / "nuclei-errors.log"
+        trace_log = out_dir / "nuclei-trace.log"
+        stdout_log = out_dir / "nuclei-stdout.log"
+        stderr_log = out_dir / "nuclei-stderr.log"
+        merged_output.write_text("", encoding="utf-8")
+
+        host_batches = [urls[start : start + NUCLEI_BATCH_SIZE] for start in range(0, len(urls), NUCLEI_BATCH_SIZE)]
+        plan = [
+            (pass_name, severity, index, batch)
+            for pass_name, severity in NUCLEI_SEVERITY_PASSES
+            for index, batch in enumerate(host_batches, start=1)
         ]
+        budget = tool_timeout(context, default=900, minimum=300, multiplier=75)
+        deadline = time.monotonic() + budget
+        batch_timeout = max(NUCLEI_MIN_BATCH_TIMEOUT, budget // max(1, len(plan)))
         if context.logger:
             context.logger.info(
-                f"nuclei targets file: {target_file} targets={len(urls)} "
-                f"output={output_file} error_log={error_log} trace_log={trace_log} "
-                f"stdout_log={stdout_log} stderr_log={stderr_log}"
+                f"nuclei plan: targets={len(urls)} host_batches={len(host_batches)} "
+                f"passes={len(NUCLEI_SEVERITY_PASSES)} batches={len(plan)} budget={budget}s "
+                f"batch_timeout={batch_timeout}s templates={templates['path']} "
+                f"template_files>={templates['count']}"
             )
-        code, stdout, stderr = run_tool(
-            args,
-            timeout=tool_timeout(context, default=900, minimum=300, multiplier=75),
-            logger=context.logger,
-            stdout_path=stdout_log,
-            stderr_path=stderr_log,
-        )
-        if code == 127:
-            result.errors.append("nuclei не найден")
-            return
-        lines = collect_jsonl_lines(stdout, output_file)
-        result.artifacts["nuclei_output"] = artifact_info(output_file)
+
+        seen: set = set()
+        count = 0
+        batch_reports: list[dict[str, object]] = []
+        last_stderr = ""
+
+        for pass_name, severity, index, batch in plan:
+            remaining = int(deadline - time.monotonic())
+            batch_id = f"{pass_name}-{index}"
+            if remaining <= NUCLEI_MIN_BATCH_TIMEOUT:
+                batch_reports.append({"batch": batch_id, "severity": severity, "targets": len(batch), "status": "skipped_no_budget"})
+                continue
+
+            target_file = out_dir / f"nuclei-targets-{batch_id}.txt"
+            output_file = out_dir / f"nuclei-output-{batch_id}.jsonl"
+            target_file.write_text("\n".join(batch) + "\n", encoding="utf-8")
+            code, stdout, stderr = run_tool(
+                nuclei_args(target_file, output_file, severity, error_log, trace_log, templates["path"]),
+                timeout=min(batch_timeout, remaining),
+                logger=context.logger,
+                stdout_path=stdout_log,
+                stderr_path=stderr_log,
+            )
+            if code == 127:
+                result.errors.append("nuclei не найден")
+                result.artifacts["nuclei_batches"] = summarize_nuclei_batches(batch_reports, len(plan))
+                return
+
+            batch_stderr = stderr.strip() or tail_text(stderr_log)
+            if "no templates provided" in batch_stderr.lower():
+                result.errors.append(
+                    "nuclei: набор шаблонов не загрузился, проверки уязвимостей не выполнялись; "
+                    f"каталог шаблонов {templates['path']}; обновить шаблоны командой 'nuclei -update-templates'"
+                )
+                result.artifacts["nuclei_batches"] = summarize_nuclei_batches(batch_reports, len(plan))
+                if context.logger:
+                    context.logger.error(f"nuclei aborted: templates not loaded from {templates['path']}")
+                return
+
+            lines = collect_jsonl_lines(stdout, output_file)
+            append_jsonl(merged_output, lines)
+            new_findings = self._ingest_nuclei_findings(lines, seen, result, context)
+            count += new_findings
+            if code != 0:
+                last_stderr = batch_stderr
+            batch_reports.append(
+                {
+                    "batch": batch_id,
+                    "severity": severity,
+                    "targets": len(batch),
+                    "status": "ok" if code == 0 else "failed",
+                    "exit_code": code,
+                    "findings": new_findings,
+                    "output": str(output_file),
+                }
+            )
+
+        result.artifacts["nuclei_output"] = artifact_info(merged_output)
         result.artifacts["nuclei_error_log"] = artifact_info(error_log)
         result.artifacts["nuclei_trace_log"] = artifact_info(trace_log)
         result.artifacts["nuclei_stdout_log"] = artifact_info(stdout_log)
@@ -572,27 +652,38 @@ class ProjectDiscoveryModule(ScannerModule):
         result.artifacts["nuclei_stderr_tail"] = tail_lines(stderr_log)
         result.artifacts["nuclei_error_tail"] = tail_lines(error_log)
         result.artifacts["nuclei_trace_tail"] = tail_lines(trace_log)
+        result.artifacts["nuclei_findings"] = count
+        summary = summarize_nuclei_batches(batch_reports, len(plan))
+        result.artifacts["nuclei_batches"] = summary
         if context.logger:
             context.logger.info(
-                "nuclei artifacts: "
-                f"output_size={file_size(output_file)} error_log_size={file_size(error_log)} "
-                f"trace_log_size={file_size(trace_log)} stdout_size={file_size(stdout_log)} "
-                f"stderr_size={file_size(stderr_log)} jsonl_lines={len(lines)}"
-            )
-        if code != 0 and not lines:
-            result.errors.append(
-                f"nuclei завершился ошибкой: {stderr.strip()[:500]}; частичных JSONL-находок нет; "
-                f"stderr_log={stderr_log}; error_log={error_log}; trace_log={trace_log}"
-            )
-            return
-        if code != 0:
-            result.errors.append(
-                f"nuclei завершился ошибкой: {stderr.strip()[:500]}, но частичные находки сохранены; "
-                f"output={output_file}; stderr_log={stderr_log}; error_log={error_log}; trace_log={trace_log}"
+                f"nuclei done: findings={count} completed={summary['completed']}/{summary['planned']} "
+                f"failed={summary['failed']} skipped={summary['skipped']}"
             )
 
+        incomplete = summary["failed"] + summary["skipped"]
+        if not incomplete:
+            return
+        coverage = f"выполнено {summary['completed']} из {summary['planned']} батчей (по хостам и severity)"
+        if count:
+            result.errors.append(
+                f"nuclei завершился ошибкой: {last_stderr[:500]}, но частичные находки сохранены; "
+                f"{coverage}; output={merged_output}; stderr_log={stderr_log}; error_log={error_log}"
+            )
+        else:
+            result.errors.append(
+                f"nuclei завершился ошибкой: {last_stderr[:500]}; частичных JSONL-находок нет; "
+                f"{coverage}; stderr_log={stderr_log}; error_log={error_log}"
+            )
+
+    def _ingest_nuclei_findings(
+        self,
+        lines: list[str],
+        seen: set,
+        result: ModuleResult,
+        context: ScanContext,
+    ) -> int:
         count = 0
-        seen = set()
         for line in lines:
             item = parse_json_line(line)
             if not item:
@@ -631,7 +722,45 @@ class ProjectDiscoveryModule(ScannerModule):
                 )
             )
             count += 1
-        result.artifacts["nuclei_findings"] = count
+        return count
+
+
+def stream_katana_endpoints(
+    stdout: str,
+    output_file: Path,
+    domain: str,
+    limit: int = KATANA_ENDPOINT_LIMIT,
+) -> tuple[set[str], dict[str, object]]:
+    """Read the whole crawl output line by line so a large site is not cut off in silence."""
+    endpoints: set[str] = set()
+    stats = {"lines_read": 0, "endpoint_limit": limit, "truncated": False}
+
+    def consume(line: str) -> bool:
+        if not line.strip():
+            return True
+        stats["lines_read"] = int(stats["lines_read"]) + 1
+        item = parse_json_line(line) or {}
+        request = item.get("request") if isinstance(item.get("request"), dict) else {}
+        url = request.get("endpoint") or item.get("url") or line.strip()
+        if not is_owned_url(str(url), domain):
+            return True
+        if url in endpoints:
+            return True
+        if len(endpoints) >= limit:
+            stats["truncated"] = True
+            return False
+        endpoints.add(str(url))
+        return True
+
+    for line in stdout.splitlines():
+        if not consume(line):
+            return endpoints, stats
+    if output_file.exists():
+        with output_file.open("r", encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                if not consume(line):
+                    break
+    return endpoints, stats
 
 
 def extract_documents_from_katana(output_file: Path, domain: str) -> dict[str, object]:
@@ -875,6 +1004,99 @@ def write_document_artifact(
     return artifact_info(output_path)
 
 
+def find_nuclei_templates() -> dict[str, object]:
+    """Locate an installed template set, because nuclei silently scans nothing without one."""
+    searched: list[str] = []
+    candidates: list[Path] = []
+    env_value = os.getenv(NUCLEI_TEMPLATES_ENV, "").strip()
+    if env_value:
+        candidates.append(Path(env_value))
+    candidates.extend(Path(item) for item in NUCLEI_TEMPLATE_DIRS)
+    candidates.append(Path.home() / "nuclei-templates")
+    candidates.append(Path.home() / ".local" / "nuclei-templates")
+
+    for candidate in candidates:
+        searched.append(str(candidate))
+        count = count_nuclei_templates(candidate)
+        if count >= NUCLEI_MIN_TEMPLATES:
+            return {"ready": True, "path": str(candidate), "count": count, "searched": searched}
+    return {"ready": False, "path": "", "count": 0, "searched": searched}
+
+
+def count_nuclei_templates(path: Path, limit: int = NUCLEI_MIN_TEMPLATES) -> int:
+    try:
+        if not path.is_dir():
+            return 0
+    except OSError:
+        return 0
+    count = 0
+    try:
+        for _ in path.rglob("*.yaml"):
+            count += 1
+            if count >= limit:
+                break
+    except OSError:
+        return count
+    return count
+
+
+def nuclei_args(
+    target_file: Path,
+    output_file: Path,
+    severity: str,
+    error_log: Path,
+    trace_log: Path,
+    templates_dir: object = "",
+) -> list[str]:
+    args = [
+        "nuclei",
+        "-list",
+        str(target_file),
+        "-severity",
+        severity,
+        "-jsonl",
+        "-jsonl-export",
+        str(output_file),
+        "-silent",
+        "-duc",
+        "-rate-limit",
+        "25",
+        "-elog",
+        str(error_log),
+        "-tlog",
+        str(trace_log),
+        "-hm",
+        "-stats",
+        "-stats-interval",
+        "30",
+    ]
+    if templates_dir:
+        args.extend(["-templates", str(templates_dir)])
+    return args
+
+
+def summarize_nuclei_batches(batch_reports: list[dict[str, object]], planned: int) -> dict[str, object]:
+    return {
+        "planned": planned,
+        "completed": sum(1 for item in batch_reports if item.get("status") == "ok"),
+        "failed": sum(1 for item in batch_reports if item.get("status") == "failed"),
+        "skipped": sum(1 for item in batch_reports if item.get("status") == "skipped_no_budget"),
+        "batches": batch_reports,
+    }
+
+
+def append_jsonl(path: Path, lines: list[str]) -> None:
+    if not lines:
+        return
+    with path.open("a", encoding="utf-8", errors="replace") as handle:
+        for line in lines:
+            handle.write(line.rstrip("\n") + "\n")
+
+
+def tail_text(path: Path, limit: int = 5) -> str:
+    return " | ".join(tail_lines(path, limit=limit))
+
+
 def collect_jsonl_lines(stdout: str, output_file: Path) -> list[str]:
     max_lines = 5000
     max_bytes = 20_000_000
@@ -893,6 +1115,74 @@ def collect_jsonl_lines(stdout: str, output_file: Path) -> list[str]:
 
 def tool_timeout(context: ScanContext, default: int, minimum: int, multiplier: int) -> int:
     return max(minimum, min(default, context.config.timeout_seconds * multiplier))
+
+
+def detect_noisy_hosts(port_details: dict[str, set[int]]) -> dict[str, dict[str, object]]:
+    """Find hosts that accept TCP on everything, before their ports reach the report."""
+    noisy: dict[str, dict[str, object]] = {}
+    for host, ports in sorted(port_details.items()):
+        if len(ports) >= NOISY_PORT_THRESHOLD:
+            noisy[host] = {
+                "reason": "too_many_open_ports",
+                "open_port_count": len(ports),
+                "sample": sorted(ports)[:30],
+            }
+            continue
+        if len(ports) < CONTROL_PROBE_MIN_PORTS:
+            continue
+        control_evidence = probe_accept_all_host(host, set(ports))
+        if control_evidence:
+            noisy[host] = {
+                "reason": "control_ports_also_open",
+                "open_ports": sorted(ports),
+                **control_evidence,
+            }
+    return noisy
+
+
+def collect_risky_services(
+    confirmed_ports: dict[str, list[int]],
+    banner_checks: dict[str, dict[str, dict[str, object]]],
+) -> tuple[dict[str, dict[str, dict[str, str]]], Severity]:
+    risky_by_host: dict[str, dict[str, dict[str, str]]] = {}
+    max_severity = Severity.INFO
+    for host, ports in sorted(confirmed_ports.items()):
+        risky_ports = {}
+        for port in sorted(set(ports)):
+            if port not in RISKY_PORTS:
+                continue
+            banner = banner_checks.get(host, {}).get(str(port), {})
+            service, severity, reason = RISKY_PORTS[port]
+            risky_ports[str(port)] = {
+                "service": service,
+                "reason": reason,
+                "banner": str(banner.get("banner") or ""),
+            }
+            max_severity = highest_severity(max_severity, severity)
+        if risky_ports:
+            risky_by_host[host] = risky_ports
+    return risky_by_host, max_severity
+
+
+def collect_host_infrastructure(hosts: list[str], domain: str) -> dict[str, dict[str, object]]:
+    """Reverse DNS tells whether a risky port lives on your own network or on a shared platform."""
+    infrastructure: dict[str, dict[str, object]] = {}
+    for host in hosts:
+        try:
+            ip = socket.gethostbyname(host)
+        except OSError:
+            continue
+        pointer = ""
+        try:
+            pointer = socket.gethostbyaddr(ip)[0]
+        except OSError:
+            pointer = ""
+        normalized = pointer.lower().strip(".")
+        third_party = bool(normalized) and not (
+            normalized == domain or normalized.endswith("." + domain)
+        )
+        infrastructure[host] = {"ip": ip, "ptr": pointer, "third_party_hosting": third_party}
+    return infrastructure
 
 
 def collect_port_banners(port_details: dict[str, list[int]]) -> dict[str, dict[str, dict[str, object]]]:
@@ -918,22 +1208,35 @@ def collect_port_banners(port_details: dict[str, list[int]]) -> dict[str, dict[s
 
 
 def probe_port_banner(host: str, port: int, timeout: float = 1.2, max_bytes: int = 160) -> dict[str, object]:
+    """Read a banner, then nudge silent services that only speak after the client does."""
     try:
         with socket.create_connection((host, port), timeout=timeout) as sock:
             sock.settimeout(timeout)
-            try:
-                data = sock.recv(max_bytes)
-            except TimeoutError:
-                data = b""
-            except OSError:
-                data = b""
+            data = read_socket(sock, max_bytes)
+            status = "banner"
+            for payload in CLIENT_PROBES:
+                if data:
+                    break
+                try:
+                    sock.sendall(payload)
+                except OSError:
+                    break
+                data = read_socket(sock, max_bytes)
+                status = "banner_after_probe"
     except OSError as exc:
         return {"banner_found": False, "status": "connect_failed", "error": str(exc)}
 
     banner = data.decode("utf-8", "replace").replace("\r", "\\r").replace("\n", "\\n").strip()
     if not banner:
         return {"banner_found": False, "status": "no_banner"}
-    return {"banner_found": True, "status": "banner", "banner": banner[:max_bytes]}
+    return {"banner_found": True, "status": status, "banner": banner[:max_bytes]}
+
+
+def read_socket(sock: socket.socket, max_bytes: int) -> bytes:
+    try:
+        return sock.recv(max_bytes)
+    except OSError:
+        return b""
 
 
 def probe_accept_all_host(host: str, detected_ports: set[int], timeout: float = 0.6) -> dict[str, object] | None:

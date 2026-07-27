@@ -25,6 +25,7 @@ class HttpResponse:
     headers: dict[str, str]
     body_sample: str
     error: str | None = None
+    body_bytes: bytes = b""
 
 
 def normalize_domain(value: str) -> str:
@@ -57,6 +58,7 @@ def http_get(url: str, timeout: int = 10, max_bytes: int = 65536) -> HttpRespons
                 status=response.status,
                 headers={k.lower(): v for k, v in response.headers.items()},
                 body_sample=text,
+                body_bytes=body,
             )
     except urllib.error.HTTPError as exc:
         body = exc.read(min(max_bytes, 8192))
@@ -67,6 +69,7 @@ def http_get(url: str, timeout: int = 10, max_bytes: int = 65536) -> HttpRespons
             headers={k.lower(): v for k, v in exc.headers.items()},
             body_sample=text,
             error=str(exc),
+            body_bytes=body,
         )
     except Exception as exc:  # noqa: BLE001 - keep scanner resilient.
         return HttpResponse(url=url, status=None, headers={}, body_sample="", error=str(exc))
@@ -172,6 +175,74 @@ def write_capture(path: Path | None, text: str) -> None:
         return
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8", errors="replace")
+
+
+LEGACY_TLS_VERSIONS = ("TLSv1", "TLSv1.1")
+
+
+def tls_version_state(host: str, version: str, port: int = 443, timeout: int = 8) -> dict[str, str]:
+    """Probe one protocol version explicitly.
+
+    A default context always negotiates the newest version, so it can never prove that a
+    legacy protocol is disabled. Modern OpenSSL builds also refuse TLS 1.0/1.1 locally,
+    and that case must be reported as unknown instead of as a clean result.
+    """
+    try:
+        tls_version = getattr(ssl.TLSVersion, version.replace(".", "_"))
+    except AttributeError:
+        return {"state": "unknown", "detail": f"неизвестная версия {version}"}
+
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    try:
+        context.minimum_version = tls_version
+        context.maximum_version = tls_version
+    except (ValueError, OSError) as exc:
+        return {"state": "unknown", "detail": f"локальный OpenSSL не умеет проверять {version}: {exc}"}
+    try:
+        context.set_ciphers("ALL:@SECLEVEL=0")
+    except ssl.SSLError:
+        pass
+
+    try:
+        with socket.create_connection((host, port), timeout=timeout) as sock:
+            with context.wrap_socket(sock, server_hostname=host) as ssock:
+                return {"state": "supported", "detail": ssock.version() or version}
+    except ssl.SSLError as exc:
+        message = str(exc)
+        if "no protocols available" in message or "unsupported protocol" in message.lower():
+            return {"state": "unknown", "detail": f"локальный OpenSSL отключил {version}: {message}"}
+        return {"state": "rejected", "detail": message}
+    except OSError as exc:
+        return {"state": "unknown", "detail": str(exc)}
+
+
+def tls_validation_state(host: str, port: int = 443, timeout: int = 8) -> dict[str, str]:
+    """Check what a browser would check: trusted chain plus matching hostname."""
+    context = ssl.create_default_context()
+    try:
+        with socket.create_connection((host, port), timeout=timeout) as sock:
+            with context.wrap_socket(sock, server_hostname=host):
+                return {"state": "valid", "detail": ""}
+    except ssl.SSLCertVerificationError as exc:
+        reason = str(exc.verify_message or exc)
+        lower = reason.lower()
+        if "hostname mismatch" in lower or "doesn't match" in lower:
+            kind = "hostname_mismatch"
+        elif "expired" in lower:
+            kind = "expired"
+        elif "self signed" in lower or "self-signed" in lower:
+            kind = "self_signed"
+        elif "unable to get local issuer" in lower or "unable to verify" in lower:
+            kind = "untrusted_chain"
+        else:
+            kind = "verification_failed"
+        return {"state": kind, "detail": reason}
+    except ssl.SSLError as exc:
+        return {"state": "handshake_failed", "detail": str(exc)}
+    except OSError as exc:
+        return {"state": "unreachable", "detail": str(exc)}
 
 
 def tls_certificate_summary(host: str, port: int = 443, timeout: int = 8) -> dict[str, Any]:

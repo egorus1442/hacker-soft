@@ -3,7 +3,7 @@ from __future__ import annotations
 import urllib.parse
 import time
 
-from hacker_soft.core.models import Confidence, Finding, ModuleResult, ScanContext, Severity
+from hacker_soft.core.models import Category, Confidence, Finding, ModuleResult, ScanContext, Severity
 from hacker_soft.core.module import ScannerModule
 from hacker_soft.core.net import fetch_json
 
@@ -54,6 +54,7 @@ class UrlscanModule(ScannerModule):
                 module=self.name,
                 title="Найдены публичные записи urlscan.io",
                     severity=Severity.INFO,
+                    category=Category.INVENTORY,
                     confidence=Confidence.HIGH,
                     target=domain,
                     evidence={"count": len(urls), "sample": urls[:10]},

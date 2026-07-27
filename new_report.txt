@@ -1,0 +1,4731 @@
+Отчет по безопасности: hi-tech.org
+Внешний аудит поверхности атаки
+hi-tech.org
+Профиль:
+deep
+· Активные проверки:
+да
+· Внешние инструменты:
+да
+· Heavy:
+нет
+· Dorks auto:
+да
+Краткая сводка
+Есть высокие риски, нужен быстрый разбор
+Найдены проблемы, которые заметно повышают вероятность атаки или утечки.
+Что важно прямо сейчас
+Высоко: Потенциально опасные сетевые сервисы доступны из интернета (hi-tech.org)
+Низко: Большая публичная карта endpoints (hi-tech.org)
+Низко: Не хватает стандартных браузерных security headers (http://mail-hti.hi-tech.org/)
+Больше читай в отчете.
+25
+Всего находок
+37
+Поддомены
+10
+Живые сервисы
+305
+Endpoints
+0
+Критично
+1
+Высоко
+0
+Средне
+6
+Низко
+18
+Инфо
+Как читать отчет.
+Это автоматическая проверка того, что видно из интернета: домены, поддомены, сайты, порты, заголовки, DNS и типовые признаки уязвимостей.
+Критично/Высоко
+- самые важные сигналы.
+Средне
+- заметные настройки, пути или сервисы.
+Низко/Инфо
+- дополнительный контекст по внешней поверхности.
+Автосканер может ошибаться, поэтому важные находки требуют ручного подтверждения.
+Публичные документы
+Найдены публичные PDF/Office-файлы по ссылкам внутри страниц сайта и поисковой выдаче. Это не ошибка само по себе, но такие файлы часто нужно отдельно проверять на метаданные и лишнюю публикацию.
+3
+Всего документов
+3
+Со страниц сайта
+3
+Через dorks
+0
+Слова риска в URL
+3
+PDF
+Полный список сохранен:
+reports/hi-tech-pentest/public-documents-merged.jsonl
+(1168 байт).
+Документы со страниц сайта (3)
+Документы загружаются...
+PDF
+hitech-2022.pdf
+PDF
+hi-tech.org
+Открыть
+PDF
+1gpegtbur0ru3xorl1w7up6389aekqx6.pdf
+PDF
+hi-tech.org
+Открыть
+PDF
+gp418go9vuxr18y2da8d9q8y5olgal0y.pdf
+PDF
+hi-tech.org
+Открыть
+По 50 документов на странице
+Документы из dorks (3)
+Документы загружаются...
+PDF
+hitech-2022.pdf
+PDF
+hi-tech.org
+DORK
+Открыть
+PDF
+1gpegtbur0ru3xorl1w7up6389aekqx6.pdf
+PDF
+hi-tech.org
+DORK
+Открыть
+PDF
+gp418go9vuxr18y2da8d9q8y5olgal0y.pdf
+PDF
+hi-tech.org
+DORK
+Открыть
+По 50 документов на странице
+Все документы вместе (3)
+Документы загружаются...
+PDF
+hitech-2022.pdf
+PDF
+hi-tech.org
+DORK
+Открыть
+PDF
+1gpegtbur0ru3xorl1w7up6389aekqx6.pdf
+PDF
+hi-tech.org
+DORK
+Открыть
+PDF
+gp418go9vuxr18y2da8d9q8y5olgal0y.pdf
+PDF
+hi-tech.org
+DORK
+Открыть
+По 50 документов на странице
+Распределение по хостам
+Хост
+Документов
+hi-tech.org
+3
+Находки
+Высоко
+Модуль: projectdiscovery
+Уверенность: высокая
+Потенциально опасные сетевые сервисы доступны из интернета
+Цель:
+hi-tech.org
+Что это
+Сканер увидел открытые порты и получил баннер/ответ от сервиса на рискованном порту.
+Чем грозит
+Подтвержденный публичный сервис базы данных, удаленного доступа или админского API может быть критичным риском.
+Что сделать
+Проверить владельца каждого порта, подтвердить сервис и ограничить доступ firewall/VPN/private network.
+Доказательства - показать JSON (12 строк, 359 символов)
+{
+"hosts": {
+"hi-tech.org": {
+"21": {
+"service": "FTP",
+"reason": "FTP часто передает данные без нормального шифрования и не должен быть открыт всем.",
+"banner": "220 Welcome to LTD BeGet FTP Server 'split'\\r\\n"
+}
+}
+},
+"note": "Риск выставлен только для портов, где удалось получить баннер/ответ сервиса."
+}
+Низко
+Модуль: projectdiscovery
+Уверенность: средняя
+Большая публичная карта endpoints
+Цель:
+hi-tech.org
+Что это
+Краулер нашел много публичных URL и API-ручек.
+Чем грозит
+Среди них могут быть старые API, тестовые страницы или служебные endpoints без нормального контроля доступа.
+Что сделать
+Проверить список endpoints, закрыть служебные ручки и удалить устаревшие маршруты.
+Доказательства - показать JSON (3 строк, 27 символов)
+{
+"endpoint_count": 301
+}
+Низко
+Модуль: http_probe
+Уверенность: высокая
+Не хватает стандартных браузерных security headers
+Цель:
+http://mail-hti.hi-tech.org/
+Что это
+Security headers - это настройки ответа сайта, которые включают дополнительные защиты в браузере.
+Чем грозит
+Без них браузер слабее защищает пользователей от части атак вроде XSS, clickjacking и утечек referrer.
+Что сделать
+Добавить недостающие заголовки в приложении, nginx/caddy/traefik или CDN.
+Доказательства - показать JSON (9 строк, 164 символов)
+{
+"missing": [
+"strict-transport-security",
+"content-security-policy",
+"x-content-type-options",
+"referrer-policy",
+"permissions-policy"
+]
+}
+Низко
+Модуль: http_probe
+Уверенность: высокая
+Не хватает стандартных браузерных security headers
+Цель:
+https://hi-tech.org/
+Что это
+Security headers - это настройки ответа сайта, которые включают дополнительные защиты в браузере.
+Чем грозит
+Без них браузер слабее защищает пользователей от части атак вроде XSS, clickjacking и утечек referrer.
+Что сделать
+Добавить недостающие заголовки в приложении, nginx/caddy/traefik или CDN.
+Доказательства - показать JSON (9 строк, 164 символов)
+{
+"missing": [
+"strict-transport-security",
+"content-security-policy",
+"x-content-type-options",
+"referrer-policy",
+"permissions-policy"
+]
+}
+Низко
+Модуль: http_probe
+Уверенность: высокая
+Не хватает стандартных браузерных security headers
+Цель:
+https://hi-tech.org/
+Что это
+Security headers - это настройки ответа сайта, которые включают дополнительные защиты в браузере.
+Чем грозит
+Без них браузер слабее защищает пользователей от части атак вроде XSS, clickjacking и утечек referrer.
+Что сделать
+Добавить недостающие заголовки в приложении, nginx/caddy/traefik или CDN.
+Доказательства - показать JSON (9 строк, 164 символов)
+{
+"missing": [
+"strict-transport-security",
+"content-security-policy",
+"x-content-type-options",
+"referrer-policy",
+"permissions-policy"
+]
+}
+Низко
+Модуль: dns_email
+Уверенность: высокая
+Отсутствует CAA-запись
+Цель:
+hi-tech.org
+Что это
+CAA - это DNS-настройка, которая ограничивает, какие центры сертификации могут выпускать HTTPS-сертификаты для домена.
+Чем грозит
+Без CAA контроль над выпуском сертификатов слабее, особенно если в инфраструктуре много доменов и подрядчиков.
+Что сделать
+Добавить CAA-записи для используемых центров сертификации, например Let's Encrypt или другого вашего CA.
+Низко
+Модуль: dork_builder
+Уверенность: средняя
+Поисковики вернули результаты по dorks
+Цель:
+hi-tech.org
+Что это
+Автоматический поиск нашел страницы, которые совпали с dork-запросами по домену.
+Чем грозит
+В выдаче могут оказаться документы, бэкапы, конфиги, старые админки или упоминания в сторонних сервисах.
+Что сделать
+Убрать чувствительные материалы из публичного доступа, закрыть индексацию и запросить переобход/удаление из поисковиков.
+Доказательства - показать JSON (37 строк, 1190 символов)
+{
+"count": 4,
+"sample": [
+{
+"engine": "duckduckgo_lite",
+"dork_title": "PDF-документы",
+"query": "site:hi-tech.org filetype:pdf",
+"title": "PDF Презентация PowerPoint",
+"url": "https://hi-tech.org/upload/Hitech_Integration_2024.pdf",
+"owned_url": true
+},
+{
+"engine": "duckduckgo_lite",
+"dork_title": "PDF-документы",
+"query": "site:hi-tech.org filetype:pdf",
+"title": "PDF Российский системный интегратор",
+"url": "https://hi-tech.org/upload/hitech-2022.pdf",
+"owned_url": true
+},
+{
+"engine": "duckduckgo_lite",
+"dork_title": "PDF-документы",
+"query": "site:hi-tech.org filetype:pdf",
+"title": "PDF Терентье - hi-tech.org",
+"url": "https://hi-tech.org/upload/iblock/c0d/gp418go9vuxr18y2da8d9q8y5olgal0y.pdf",
+"owned_url": true
+},
+{
+"engine": "duckduckgo_lite",
+"dork_title": "PDF-документы",
+"query": "site:hi-tech.org filetype:pdf",
+"title": "PDF ПЕРЕЧЕНЬ инсайдерской информации Общества с огран",
+"url": "https://hi-tech.org/upload/iblock/173/1gpegtbur0ru3xorl1w7up6389aekqx6.pdf",
+"owned_url": true
+}
+]
+}
+Инфо
+Модуль: http_probe
+Уверенность: высокая
+HTTP-заголовки раскрывают технологию или версию
+Цель:
+http://mail-hti.hi-tech.org/
+Что это
+Сайт сообщает наружу используемые технологии или версии через HTTP-заголовки.
+Чем грозит
+Это не взлом само по себе, но помогает атакующему быстрее подобрать известные уязвимости под ваш стек.
+Что сделать
+Скрыть лишние version banners и оставить только технически необходимые заголовки.
+Доказательства - показать JSON (4 строк, 58 символов)
+{
+"server": "Microsoft-IIS/10.0",
+"x-powered-by": ""
+}
+Инфо
+Модуль: http_probe
+Уверенность: высокая
+HTTP-заголовки раскрывают технологию или версию
+Цель:
+https://hi-tech.org/
+Что это
+Сайт сообщает наружу используемые технологии или версии через HTTP-заголовки.
+Чем грозит
+Это не взлом само по себе, но помогает атакующему быстрее подобрать известные уязвимости под ваш стек.
+Что сделать
+Скрыть лишние version banners и оставить только технически необходимые заголовки.
+Доказательства - показать JSON (4 строк, 72 символов)
+{
+"server": "nginx-reuseport/1.21.1",
+"x-powered-by": "PHP/8.2.28"
+}
+Инфо
+Модуль: http_probe
+Уверенность: высокая
+HTTP-заголовки раскрывают технологию или версию
+Цель:
+https://hi-tech.org/
+Что это
+Сайт сообщает наружу используемые технологии или версии через HTTP-заголовки.
+Чем грозит
+Это не взлом само по себе, но помогает атакующему быстрее подобрать известные уязвимости под ваш стек.
+Что сделать
+Скрыть лишние version banners и оставить только технически необходимые заголовки.
+Доказательства - показать JSON (4 строк, 72 символов)
+{
+"server": "nginx-reuseport/1.21.1",
+"x-powered-by": "PHP/8.2.28"
+}
+Инфо
+Модуль: urlscan
+Уверенность: высокая
+Найдены публичные записи urlscan.io
+Цель:
+hi-tech.org
+Что это
+urlscan.io содержит публичные записи сканирования, связанные с доменом.
+Чем грозит
+В них могут быть видны неожиданные URL, сторонние зависимости или следы старых сервисов.
+Что сделать
+Проверить записи и убедиться, что там нет чувствительных URL или неожиданных активов.
+Доказательства - показать JSON (8 строк, 235 символов)
+{
+"count": 3,
+"sample": [
+"https://mail-hti.hi-tech.org/owa/auth/logon.aspx?url=https%3a%2f%2fmail-hti.hi-tech.org%2fowa%2f&reason=0",
+"https://ivcs.hi-tech.org/v2/iva/home",
+"https://ivcs.hi-tech.org/v2/iva/home"
+]
+}
+Инфо
+Модуль: dork_builder
+Уверенность: высокая
+Нужна ручная проверка Google/Bing dorks
+Цель:
+hi-tech.org
+Что это
+Это набор поисковых запросов, которые помогают найти, что поисковики уже знают о домене.
+Чем грозит
+Если в индексе есть конфиги, документы, логи, бэкапы или админки, их может найти любой человек.
+Что сделать
+Открыть ссылки из доказательств, проверить выдачу и убрать из публичного доступа все чувствительное.
+Доказательства - показать JSON (62 строк, 2880 символов)
+{
+"dork_count": 42,
+"auto_search_enabled": true,
+"sample": [
+{
+"title": "PDF-документы",
+"query": "site:hi-tech.org filetype:pdf",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+filetype%3Apdf",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+filetype%3Apdf",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+filetype%3Apdf"
+},
+{
+"title": "Word-документы DOC",
+"query": "site:hi-tech.org filetype:doc",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+filetype%3Adoc",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+filetype%3Adoc",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+filetype%3Adoc"
+},
+{
+"title": "Word-документы DOCX",
+"query": "site:hi-tech.org filetype:docx",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+filetype%3Adocx",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+filetype%3Adocx",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+filetype%3Adocx"
+},
+{
+"title": "Excel-документы XLS",
+"query": "site:hi-tech.org filetype:xls",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+filetype%3Axls",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+filetype%3Axls",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+filetype%3Axls"
+},
+{
+"title": "Excel-документы XLSX",
+"query": "site:hi-tech.org filetype:xlsx",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+filetype%3Axlsx",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+filetype%3Axlsx",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+filetype%3Axlsx"
+},
+{
+"title": "Презентации PPT",
+"query": "site:hi-tech.org filetype:ppt",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+filetype%3Appt",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+filetype%3Appt",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+filetype%3Appt"
+},
+{
+"title": "Презентации PPTX",
+"query": "site:hi-tech.org filetype:pptx",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+filetype%3Apptx",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+filetype%3Apptx",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+filetype%3Apptx"
+},
+{
+"title": "RTF-документы",
+"query": "site:hi-tech.org filetype:rtf",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+filetype%3Artf",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+filetype%3Artf",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+filetype%3Artf"
+}
+]
+}
+Инфо
+Модуль: projectdiscovery
+Уверенность: средняя
+Открытые TCP-порты без подтвержденного баннера
+Цель:
+hi-tech.org
+Что это
+TCP-соединение установилось, но сервис не прислал баннер и не ответил на пробный запрос.
+Чем грозит
+Такой порт может быть реальным сервисом, firewall/tarpit/proxy-ответом или сервисом, который молчит до корректного клиентского handshake.
+Что сделать
+Оставить как информационную находку до подтверждения конкретного сервиса и владельца.
+Доказательства - показать JSON (374 строк, 4630 символов)
+{
+"hosts": {
+"1c-server.hi-tech.org": [
+110,
+389,
+1027,
+3986,
+8081,
+8888,
+49157
+],
+"7twenty.hi-tech.org": [
+110,
+389,
+1027,
+3986,
+8081,
+8888,
+49157
+],
+"hi-tech.org": [
+135,
+544,
+1900
+],
+"iva.portal.hi-tech.org": [
+13,
+53,
+110,
+389,
+543,
+873,
+1027,
+2000,
+2049,
+3986,
+5101,
+7070,
+8009
+],
+"ns1.hi-tech.org": [
+7,
+13,
+21,
+139,
+465,
+554,
+646,
+993,
+2001,
+2717,
+8080,
+49152
+],
+"test2023.hi-tech.org": [
+21,
+135,
+544,
+1900
+],
+"www.hi-tech.org": [
+21,
+135,
+544,
+1900
+],
+"aads.hi-tech.org": [
+53,
+88,
+111,
+119,
+135,
+514,
+544,
+554,
+990,
+995,
+1026,
+1027,
+2717,
+5060,
+5800,
+6001,
+9100,
+49155
+],
+"aawg.hi-tech.org": [
+53,
+88,
+111,
+119,
+135,
+514,
+544,
+554,
+990,
+995,
+1026,
+1027,
+2717,
+5060,
+5800,
+6001,
+9100,
+49155
+],
+"autodiscover.hi-tech.org": [
+25,
+26,
+144,
+444,
+465,
+548,
+587,
+2000,
+2049,
+3389,
+4899,
+6001,
+8080,
+10000,
+49153,
+49154,
+49156
+],
+"breeze-sm100.hi-tech.org": [
+53,
+88,
+111,
+119,
+135,
+514,
+544,
+554,
+990,
+995,
+1026,
+1027,
+2717,
+5060,
+5800,
+6001,
+9100,
+49155
+],
+"cloud.hi-tech.org": [
+110,
+389,
+1027,
+3986,
+8081,
+8888,
+49157
+],
+"hti-vpn1.hi-tech.org": [
+13,
+23,
+79,
+143,
+443,
+515,
+587,
+1723,
+1900,
+3000,
+4899,
+5051,
+5432,
+5800,
+7070,
+49153,
+49155,
+49157
+],
+"ivcs.hi-tech.org": [
+21,
+26,
+139,
+143,
+515,
+646,
+993,
+3306,
+6001,
+8000
+],
+"lets-test.hi-tech.org": [
+7,
+13,
+21,
+81,
+88,
+110,
+111,
+113,
+444,
+465,
+514,
+544,
+646,
+993,
+1027,
+2000,
+2001,
+2121,
+3000,
+5666,
+5800,
+6000,
+6646,
+49154,
+49157
+],
+"mail-hti.hi-tech.org": [
+25,
+26,
+144,
+444,
+465,
+548,
+587,
+2000,
+2049,
+3389,
+4899,
+6001,
+8080,
+10000,
+49153,
+49154,
+49156
+],
+"mail.hi-tech.org": [
+25,
+144,
+548,
+1110,
+2049,
+3986,
+4899,
+6001,
+8443,
+9100,
+32768
+],
+"mail01.hi-tech.org": [
+25,
+144,
+548,
+1110,
+2049,
+3986,
+4899,
+6001,
+8443,
+9100,
+32768
+],
+"mx1.hi-tech.org": [
+25,
+26,
+144,
+444,
+465,
+548,
+587,
+2000,
+2049,
+3389,
+4899,
+6001,
+8080,
+10000,
+49153,
+49154,
+49156
+],
+"old.hi-tech.org": [
+21,
+135,
+444,
+445,
+513,
+990,
+995,
+1720,
+1900,
+4899,
+8008,
+49156
+],
+"sip.hi-tech.org": [
+53,
+88,
+111,
+119,
+135,
+514,
+544,
+554,
+990,
+995,
+1026,
+1027,
+2717,
+5060,
+5800,
+6001,
+9100,
+49155
+],
+"status.hi-tech.org": [
+81,
+119,
+199,
+427,
+444,
+465,
+513,
+995,
+1025,
+1110,
+2000,
+2049,
+2717,
+3306,
+3389,
+3986,
+5666,
+5900,
+6001,
+8000,
+8008,
+8080,
+8081,
+49155
+],
+"turn.hi-tech.org": [
+9,
+88,
+873,
+1433,
+3306,
+3389,
+3986,
+6001,
+6646,
+32768
+],
+"vpn2.hi-tech.org": [
+25,
+79,
+179,
+389,
+515,
+554,
+1025,
+1755,
+1900,
+2049,
+5101,
+5190,
+5631,
+5800,
+8009,
+8888,
+10000,
+49152,
+49153
+]
+},
+"count": 320,
+"note": "Эти порты исключены из списка активов и не считаются подтвержденной поверхностью атаки."
+}
+Инфо
+Модуль: projectdiscovery
+Уверенность: высокая
+Подтвержденные открытые порты
+Цель:
+hi-tech.org
+Что это
+На этих портах сервис ответил баннером или откликнулся на пробный запрос, поэтому они считаются реальной поверхностью атаки.
+Чем грозит
+Каждый публичный сервис нужно обновлять и контролировать: это точки входа, доступные из интернета.
+Что сделать
+Оставить публичными только нужные сервисы, остальное закрыть firewall, VPN или allowlist.
+Доказательства - показать JSON (9 строк, 118 символов)
+{
+"confirmed_ports": {
+"hi-tech.org": [
+21
+]
+},
+"confirmed_count": 1,
+"reported_by_naabu": 642
+}
+Инфо
+Модуль: document_links
+Уверенность: высокая
+Публичные документы проверены в рамках текущего отчета
+Цель:
+hi-tech.org
+Что это
+Сервис собрал URL для текущего домена, нашел ссылки на документы в HTML и подтвердил документы сетевой проверкой.
+Чем грозит
+В публичных документах могут быть метаданные, договоры, заявки, контакты, внутренние названия и иная чувствительная информация.
+Что сделать
+Сверить публикации с владельцами разделов, закрыть лишние файлы и очищать метаданные перед публикацией.
+Доказательства - показать JSON (8 строк, 94 символов)
+{
+"total": 3,
+"by_type": {
+"pdf": 3
+},
+"candidate_count": 6,
+"input_urls": 307
+}
+Инфо
+Модуль: projectdiscovery
+Уверенность: средняя
+Результат port scan выглядит шумным и требует перепроверки
+Цель:
+hi-tech.org
+Что это
+Сканер увидел слишком много открытых top-портов на одном host, что часто бывает из-за tarpitting, firewall/proxy-ответов или сетевых особенностей.
+Чем грозит
+Порты таких хостов исключены из активов и из оценки риска, чтобы отчет не завышал поверхность атаки.
+Что сделать
+Запустить ручную проверку ключевых портов и оставить в плане исправлений только подтвержденные сервисы.
+Доказательства - показать JSON (711 строк, 10946 символов)
+{
+"aads.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+53,
+88,
+111,
+119,
+135,
+514,
+544,
+554,
+990,
+995,
+1026,
+1027,
+2717,
+5060,
+5800,
+6001,
+9100,
+49155
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"aawg.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+53,
+88,
+111,
+119,
+135,
+514,
+544,
+554,
+990,
+995,
+1026,
+1027,
+2717,
+5060,
+5800,
+6001,
+9100,
+49155
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"autodiscover.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+25,
+26,
+144,
+444,
+465,
+548,
+587,
+2000,
+2049,
+3389,
+4899,
+6001,
+8080,
+10000,
+49153,
+49154,
+49156
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"breeze-sm100.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+53,
+88,
+111,
+119,
+135,
+514,
+544,
+554,
+990,
+995,
+1026,
+1027,
+2717,
+5060,
+5800,
+6001,
+9100,
+49155
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"cloud.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+110,
+389,
+1027,
+3986,
+8081,
+8888,
+49157
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"hti-vpn1.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+13,
+23,
+79,
+143,
+443,
+515,
+587,
+1723,
+1900,
+3000,
+4899,
+5051,
+5432,
+5800,
+7070,
+49153,
+49155,
+49157
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+37,
+81,
+82
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+9,
+37,
+81,
+82
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"ivcs.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+21,
+26,
+139,
+143,
+515,
+646,
+993,
+3306,
+6001,
+8000
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"lets-test.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+7,
+13,
+21,
+81,
+88,
+110,
+111,
+113,
+444,
+465,
+514,
+544,
+646,
+993,
+1027,
+2000,
+2001,
+2121,
+3000,
+5666,
+5800,
+6000,
+6646,
+49154,
+49157
+],
+"control_ports_tested": [
+1,
+2,
+3,
+9,
+37,
+79,
+82,
+999
+],
+"control_ports_open": [
+1,
+2,
+3,
+9,
+37,
+79,
+82,
+999
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"mail-hti.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+25,
+26,
+144,
+444,
+465,
+548,
+587,
+2000,
+2049,
+3389,
+4899,
+6001,
+8080,
+10000,
+49153,
+49154,
+49156
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"mail.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+25,
+144,
+548,
+1110,
+2049,
+3986,
+4899,
+6001,
+8443,
+9100,
+32768
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"mail01.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+25,
+144,
+548,
+1110,
+2049,
+3986,
+4899,
+6001,
+8443,
+9100,
+32768
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"mx1.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+25,
+26,
+144,
+444,
+465,
+548,
+587,
+2000,
+2049,
+3389,
+4899,
+6001,
+8080,
+10000,
+49153,
+49154,
+49156
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+9,
+13,
+79
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"old.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+21,
+135,
+444,
+445,
+513,
+990,
+995,
+1720,
+1900,
+4899,
+8008,
+49156
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"control_ports_open": [
+3,
+7,
+9,
+13,
+37,
+79
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"sip.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+53,
+88,
+111,
+119,
+135,
+514,
+544,
+554,
+990,
+995,
+1026,
+1027,
+2717,
+5060,
+5800,
+6001,
+9100,
+49155
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"status.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+81,
+119,
+199,
+427,
+444,
+465,
+513,
+995,
+1025,
+1110,
+2000,
+2049,
+2717,
+3306,
+3389,
+3986,
+5666,
+5900,
+6001,
+8000,
+8008,
+8080,
+8081,
+49155
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"turn.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+9,
+88,
+873,
+1433,
+3306,
+3389,
+3986,
+6001,
+6646,
+32768
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+13,
+37,
+79,
+81
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+13,
+37,
+79,
+81
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"vpn2.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+25,
+79,
+179,
+389,
+515,
+554,
+1025,
+1755,
+1900,
+2049,
+5101,
+5190,
+5631,
+5800,
+8009,
+8888,
+10000,
+49152,
+49153
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+81
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+81
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+}
+}
+Инфо
+Модуль: projectdiscovery
+Уверенность: средняя
+Технологии веб-сервиса определены через httpx
+Цель:
+https://hi-tech.org
+Что это
+httpx определил технологии, которые использует публичный веб-сервис.
+Чем грозит
+Само по себе это информационная находка, но она помогает понять, какие сервисы нужно обновлять и мониторить.
+Что сделать
+Проверить владельца сервиса, актуальность технологий и отсутствие старых публичных админок.
+Доказательства - показать JSON (9 строк, 149 символов)
+{
+"tech": [
+"1C-Bitrix",
+"Nginx",
+"PHP:8.2.28"
+],
+"title": "Российский системный интегратор «Хайтэк-Интеграция»",
+"status": 200
+}
+Инфо
+Модуль: projectdiscovery
+Уверенность: средняя
+Технологии веб-сервиса определены через httpx
+Цель:
+https://test2023.hi-tech.org
+Что это
+httpx определил технологии, которые использует публичный веб-сервис.
+Чем грозит
+Само по себе это информационная находка, но она помогает понять, какие сервисы нужно обновлять и мониторить.
+Что сделать
+Проверить владельца сервиса, актуальность технологий и отсутствие старых публичных админок.
+Доказательства - показать JSON (9 строк, 149 символов)
+{
+"tech": [
+"1C-Bitrix",
+"Nginx",
+"PHP:8.2.28"
+],
+"title": "Российский системный интегратор «Хайтэк-Интеграция»",
+"status": 200
+}
+Инфо
+Модуль: projectdiscovery
+Уверенность: средняя
+Технологии веб-сервиса определены через httpx
+Цель:
+http://mail01.hi-tech.org
+Что это
+httpx определил технологии, которые использует публичный веб-сервис.
+Чем грозит
+Само по себе это информационная находка, но она помогает понять, какие сервисы нужно обновлять и мониторить.
+Что сделать
+Проверить владельца сервиса, актуальность технологий и отсутствие старых публичных админок.
+Доказательства - показать JSON (8 строк, 89 символов)
+{
+"tech": [
+"IIS:8.5",
+"Windows Server"
+],
+"title": null,
+"status": 403
+}
+Инфо
+Модуль: projectdiscovery
+Уверенность: средняя
+Технологии веб-сервиса определены через httpx
+Цель:
+http://mail-hti.hi-tech.org
+Что это
+httpx определил технологии, которые использует публичный веб-сервис.
+Чем грозит
+Само по себе это информационная находка, но она помогает понять, какие сервисы нужно обновлять и мониторить.
+Что сделать
+Проверить владельца сервиса, актуальность технологий и отсутствие старых публичных админок.
+Доказательства - показать JSON (8 строк, 90 символов)
+{
+"tech": [
+"IIS:10.0",
+"Windows Server"
+],
+"title": null,
+"status": 403
+}
+Инфо
+Модуль: projectdiscovery
+Уверенность: средняя
+Технологии веб-сервиса определены через httpx
+Цель:
+http://mx1.hi-tech.org
+Что это
+httpx определил технологии, которые использует публичный веб-сервис.
+Чем грозит
+Само по себе это информационная находка, но она помогает понять, какие сервисы нужно обновлять и мониторить.
+Что сделать
+Проверить владельца сервиса, актуальность технологий и отсутствие старых публичных админок.
+Доказательства - показать JSON (8 строк, 90 символов)
+{
+"tech": [
+"IIS:10.0",
+"Windows Server"
+],
+"title": null,
+"status": 403
+}
+Инфо
+Модуль: projectdiscovery
+Уверенность: средняя
+Технологии веб-сервиса определены через httpx
+Цель:
+http://autodiscover.hi-tech.org
+Что это
+httpx определил технологии, которые использует публичный веб-сервис.
+Чем грозит
+Само по себе это информационная находка, но она помогает понять, какие сервисы нужно обновлять и мониторить.
+Что сделать
+Проверить владельца сервиса, актуальность технологий и отсутствие старых публичных админок.
+Доказательства - показать JSON (8 строк, 90 символов)
+{
+"tech": [
+"IIS:10.0",
+"Windows Server"
+],
+"title": null,
+"status": 403
+}
+Инфо
+Модуль: projectdiscovery
+Уверенность: средняя
+Технологии веб-сервиса определены через httpx
+Цель:
+http://www.hi-tech.org
+Что это
+httpx определил технологии, которые использует публичный веб-сервис.
+Чем грозит
+Само по себе это информационная находка, но она помогает понять, какие сервисы нужно обновлять и мониторить.
+Что сделать
+Проверить владельца сервиса, актуальность технологий и отсутствие старых публичных админок.
+Доказательства - показать JSON (9 строк, 149 символов)
+{
+"tech": [
+"1C-Bitrix",
+"Nginx",
+"PHP:8.2.28"
+],
+"title": "Российский системный интегратор «Хайтэк-Интеграция»",
+"status": 200
+}
+Инфо
+Модуль: projectdiscovery
+Уверенность: средняя
+Технологии веб-сервиса определены через httpx
+Цель:
+http://ivcs.hi-tech.org
+Что это
+httpx определил технологии, которые использует публичный веб-сервис.
+Чем грозит
+Само по себе это информационная находка, но она помогает понять, какие сервисы нужно обновлять и мониторить.
+Что сделать
+Проверить владельца сервиса, актуальность технологий и отсутствие старых публичных админок.
+Доказательства - показать JSON (7 строк, 77 символов)
+{
+"tech": [
+"HSTS"
+],
+"title": "Videoconference",
+"status": 200
+}
+Инфо
+Модуль: exposure_paths
+Уверенность: высокая
+Хосты отдают одинаковый ответ на любой путь (ложные срабатывания отфильтрованы)
+Цель:
+autodiscover.hi-tech.org, mail-hti.hi-tech.org, mail.hi-tech.org, mail01.hi-tech.org, mx1.hi-tech.org
+Что это
+На этих хостах запрос несуществующего файла возвращает ту же страницу, что и запрос чувствительного пути: обычно это форма входа, SSO-редирект или единая страница-заглушка.
+Чем грозит
+Такие ответы не означают, что файл существует, поэтому они исключены из находок, чтобы не завышать риск.
+Что сделать
+Ничего чинить не нужно. Если файл на таком хосте действительно важен, проверить его вручную с авторизацией.
+Доказательства - показать JSON (61 строк, 1168 символов)
+{
+"hosts": {
+"autodiscover.hi-tech.org": [
+"/backup.sql",
+"/backup.zip",
+"/config.json",
+"/config.php",
+"/db.sql",
+"/dump.sql",
+"/phpinfo.php"
+],
+"mail-hti.hi-tech.org": [
+"/backup.sql",
+"/backup.zip",
+"/config.json",
+"/config.php",
+"/db.sql",
+"/dump.sql",
+"/phpinfo.php"
+],
+"mail.hi-tech.org": [
+"/.env",
+"/backup.sql",
+"/backup.zip",
+"/config.json",
+"/config.php",
+"/db.sql",
+"/dump.sql",
+"/phpinfo.php",
+"/server-status"
+],
+"mail01.hi-tech.org": [
+"/.env",
+"/backup.sql",
+"/backup.zip",
+"/config.json",
+"/config.php",
+"/db.sql",
+"/dump.sql",
+"/phpinfo.php",
+"/server-status"
+],
+"mx1.hi-tech.org": [
+"/backup.sql",
+"/backup.zip",
+"/config.json",
+"/config.php",
+"/db.sql",
+"/dump.sql",
+"/phpinfo.php"
+],
+"test2023.hi-tech.org": [
+"/.well-known/security.txt",
+"/backup.zip",
+"/config.json",
+"/config.php",
+"/phpinfo.php"
+]
+},
+"filtered_checks": 814
+}
+Активы
+Поддомены (37) - показать список
+1c-server.hi-tech.org
+7twenty.hi-tech.org
+aads.hi-tech.org
+aawg.hi-tech.org
+admin.hi-tech.org
+autodiscover.hi-tech.org
+breeze-sm100.hi-tech.org
+cloud.hi-tech.org
+freenas.hi-tech.org
+git.hi-tech.org
+hi-tech.org
+hti-vpn1.hi-tech.org
+iva.portal.hi-tech.org
+ivcs-vcenter.hi-tech.org
+ivcs.hi-tech.org
+jira.hi-tech.org
+konkurs.hi-tech.org
+lets-test.hi-tech.org
+mail-hti.hi-tech.org
+mail.hi-tech.org
+mail01.hi-tech.org
+mx1.hi-tech.org
+ns1.hi-tech.org
+old.hi-tech.org
+portal.hi-tech.org
+sip.hi-tech.org
+status.hi-tech.org
+teampass.hi-tech.org
+test2023.hi-tech.org
+testrail.hi-tech.org
+turn.hi-tech.org
+van.hi-tech.org
+vpn2.hi-tech.org
+wiki.hi-tech.org
+www.hi-tech.org
+www.konkurs.hi-tech.org
+xenapp-gw.hi-tech.org
+Живые HTTP(S)-сервисы (10)
+http://autodiscover.hi-tech.org
+http://ivcs.hi-tech.org
+http://mail-hti.hi-tech.org
+http://mail-hti.hi-tech.org/
+http://mail01.hi-tech.org
+http://mx1.hi-tech.org
+http://www.hi-tech.org
+https://hi-tech.org
+https://hi-tech.org/
+https://test2023.hi-tech.org
+IP-адреса (15)
+142.132.149.97
+158.160.37.96
+178.208.83.11
+185.137.235.2
+185.47.154.163
+217.28.141.146
+77.74.78.242
+77.74.78.245
+77.74.78.248
+77.74.78.249
+77.74.78.250
+79.98.186.123
+87.236.17.13
+91.227.152.99
+94.141.109.147
+Подтвержденные открытые порты
+hi-tech.org
+: 21
+Endpoints (305) - показать список
+http://autodiscover.hi-tech.org
+http://ivcs.hi-tech.org
+http://mail-hti.hi-tech.org
+http://mail-hti.hi-tech.org/
+http://mail01.hi-tech.org
+http://mx1.hi-tech.org
+http://www.hi-tech.org
+https://hi-tech.org
+https://hi-tech.org/
+https://hi-tech.org/upload/Hitech_Integration_2024.pdf
+https://hi-tech.org/upload/hitech-2022.pdf
+https://hi-tech.org/upload/iblock/173/1gpegtbur0ru3xorl1w7up6389aekqx6.pdf
+https://hi-tech.org/upload/iblock/c0d/gp418go9vuxr18y2da8d9q8y5olgal0y.pdf
+https://ivcs.hi-tech.org/
+https://test2023.hi-tech.org
+https://test2023.hi-tech.org/
+https://test2023.hi-tech.org/about/
+https://test2023.hi-tech.org/about/career/
+https://test2023.hi-tech.org/about/career/?PAGEN_2=1
+https://test2023.hi-tech.org/about/career/?PAGEN_2=2
+https://test2023.hi-tech.org/about/disclosure/
+https://test2023.hi-tech.org/about/it-accreditation/
+https://test2023.hi-tech.org/about/licenses/
+https://test2023.hi-tech.org/about/reviews/
+https://test2023.hi-tech.org/bitrix/cache/css/s1/hitech/page_1d6604ae9a37cadb830ad467568112d3/page_1d6604ae9a37cadb830ad467568112d3_v1.css?1767361643685
+https://test2023.hi-tech.org/bitrix/cache/css/s1/hitech/page_6e2cd993e79bded787ed8f1ee1faaabd/page_6e2cd993e79bded787ed8f1ee1faaabd_v1.css?1767372023401
+https://test2023.hi-tech.org/bitrix/cache/css/s1/hitech/page_6f09e813cad0f9632898983f437d4785/page_6f09e813cad0f9632898983f437d4785_v1.css?1767361832393
+https://test2023.hi-tech.org/bitrix/cache/css/s1/hitech/page_7e4e79ad6a2b39b64663d5c2cea9226a/page_7e4e79ad6a2b39b64663d5c2cea9226a_v1.css?1767362456687
+https://test2023.hi-tech.org/bitrix/cache/css/s1/hitech/page_98ec1a8df55f89121137c8b32e88dcba/page_98ec1a8df55f89121137c8b32e88dcba_v1.css?1767363458301
+https://test2023.hi-tech.org/bitrix/cache/css/s1/hitech/page_caaa3525dd4fb26a90a2ecba6dade444/page_caaa3525dd4fb26a90a2ecba6dade444_v1.css?1767383619689
+https://test2023.hi-tech.org/bitrix/cache/css/s1/hitech/page_cf3641a5ca694d378237dff89c1e35cf/page_cf3641a5ca694d378237dff89c1e35cf_v1.css?1767378271338
+https://test2023.hi-tech.org/bitrix/cache/css/s1/hitech/page_dc87d5ce03ca354e357056231fdfd467/page_dc87d5ce03ca354e357056231fdfd467_v1.css?1767361837403
+https://test2023.hi-tech.org/bitrix/cache/css/s1/hitech/page_ee978f6b467969cec7edba6744c480c9/page_ee978f6b467969cec7edba6744c480c9_v1.css?1767361736695
+https://test2023.hi-tech.org/bitrix/cache/css/s1/hitech/page_f886be79a023f0b4aa08003264db86ce/page_f886be79a023f0b4aa08003264db86ce_v1.css?1767364714693
+https://test2023.hi-tech.org/bitrix/cache/css/s1/hitech/template_2ee6b9a220656ef03588da775b6f710e/template_2ee6b9a220656ef03588da775b6f710e_v1.css?17673616431660
+https://test2023.hi-tech.org/bitrix/cache/css/s1/hitech/template_ff97960b88b8c7fbf6d5fe06a1c37381/template_ff97960b88b8c7fbf6d5fe06a1c37381_v1.css?17673616772134
+https://test2023.hi-tech.org/bitrix/cache/js/s1/hitech/page_ae656074d2b8791618cc9508ca50158d/page_ae656074d2b8791618cc9508ca50158d_v1.js?17673616432326
+https://test2023.hi-tech.org/clients/
+https://test2023.hi-tech.org/clients/?PAGEN_1=1
+https://test2023.hi-tech.org/clients/?PAGEN_1=2
+https://test2023.hi-tech.org/confidential/
+https://test2023.hi-tech.org/contacts/
+https://test2023.hi-tech.org/finance/
+https://test2023.hi-tech.org/local/get/?ACTION=FORM
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=234
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=244
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=245
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=246
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=247
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=248
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=249
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=250
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=251
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=252
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=253
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=254
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=255
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=256
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=442
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=443
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=444
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=445
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=446
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=447
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=448
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=449
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=450
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=452
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=453
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=454
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=455
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=456
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=457
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=458
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=459
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=460
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=461
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=462
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=463
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=464
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=465
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=466
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=467
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=468
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=469
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=470
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=471
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=472
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=473
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=474
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=475
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=476
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=477
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=552
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=553
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=554
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=555
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=556
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=557
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=558
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=559
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=560
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=561
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=562
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=563
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=564
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=565
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=569
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=570
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=571
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=572
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=573
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=574
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=575
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=576
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=577
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=578
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=579
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=580
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=581
+https://test2023.hi-tech.org/local/get/?ACTION=SERVICE&EL=582
+https://test2023.hi-tech.org/local/templates/hitech/assets/css/bundle.css?v=c4e9a6b3
+https://test2023.hi-tech.org/local/templates/hitech/assets/favicons/manifest.json?v=c4e9a6b3
+https://test2023.hi-tech.org/local/templates/hitech/assets/js/bundle.js?v=c4e9a6b3
+https://test2023.hi-tech.org/local/templates/hitech/assets_cms/add.css?v=c4e9a6b3
+https://test2023.hi-tech.org/local/templates/hitech/assets_cms/script.js?v=c4e9a6b3
+https://test2023.hi-tech.org/partners/
+https://test2023.hi-tech.org/personal-policy/
+https://test2023.hi-tech.org/press/
+https://test2023.hi-tech.org/press/blog/
+https://test2023.hi-tech.org/press/blog/cisco-and-ibm-join-forces-in-the-fight-against-cybercrime/
+https://test2023.hi-tech.org/press/blog/global-server-sales-fell-by-4-6/
+https://test2023.hi-tech.org/press/blog/hpe-summer-webinar-series/
+https://test2023.hi-tech.org/press/blog/ibm-and-vmware-are-again-recognized-as-leaders-in-gartners-magic-quadrant/
+https://test2023.hi-tech.org/press/blog/new-device-classes-on-the-windows-10-platform/
+https://test2023.hi-tech.org/press/blog/the-mcafee-brand-has-returned-to-the-information-security-market-again/
+https://test2023.hi-tech.org/press/blog/veeam-introduced-new-solutions/
+https://test2023.hi-tech.org/press/blog/wi-fi-6-ot-prostogo-do-neveroyatnogo/
+https://test2023.hi-tech.org/press/events/
+https://test2023.hi-tech.org/press/news/
+https://test2023.hi-tech.org/press/news/%D1%81onstruction-of-a-video-conferencing-network-for-the-holding/
+https://test2023.hi-tech.org/press/news/?PAGEN_1=1
+https://test2023.hi-tech.org/press/news/?PAGEN_1=2
+https://test2023.hi-tech.org/press/news/?PAGEN_1=3
+https://test2023.hi-tech.org/press/news/a-cooperation-agreement-was-signed-with-the-ministry-of-communications-of-tatarstan-and-the-administration-of-innopolis/
+https://test2023.hi-tech.org/press/news/akvarius-vypustil-dyuzhinu-novykh-klientskikh-ustroystv/
+https://test2023.hi-tech.org/press/news/exeplant-fabricaone-ai-aktsioner-gk-softline-i-khaytek-integratsiya-zaklyuchili-soglashenie-o-partne/
+https://test2023.hi-tech.org/press/news/gokhran-rossii-vybral-otechestvennuyu-ip-ats/
+https://test2023.hi-tech.org/press/news/hitech-expands-the-pool-of-partners/
+https://test2023.hi-tech.org/press/news/hitech-is-the-official-partner-of-the-experience-avaya-2017-forum/
+https://test2023.hi-tech.org/press/news/hitech-participates-in-galaxy-business-day-2017/
+https://test2023.hi-tech.org/press/news/hitech-received-sapphire-avaya-partner-status/
+https://test2023.hi-tech.org/press/news/hitech-supported-the-holding-of-an-open-hand-to-hand-combat-tournament-in-akhtubinsk/
+https://test2023.hi-tech.org/press/news/khaytek-integratsiya-i-ctrl2go-solutions-dogovorilis-o-partnerstve/
+https://test2023.hi-tech.org/press/news/khaytek-integratsiya-i-dis-group-dogovorilis-o-sovmestnom-prodvizhenii-rossiyskikh-resheniy-dlya-tsi/
+https://test2023.hi-tech.org/press/news/khaytek-integratsiya-i-robusta-tekhnologii-sovmestno-zaymutsya-proektami-v-oblasti-biznes-analitiki/
+https://test2023.hi-tech.org/press/news/khaytek-integratsiya-postroila-edinyy-kontakt-tsentr-dlya-tsentra-korporativnykh-resheniy-tskr/
+https://test2023.hi-tech.org/press/news/khaytek-integratsiya-priobrela-70-doli-v-razrabotchike-proizvodstvennogo-po-bfg-group/
+https://test2023.hi-tech.org/press/news/khaytek-integratsiya-stal-ofitsialnym-partnerom-rr-tech/
+https://test2023.hi-tech.org/press/news/khaytek-integratsiya-stala-ekspertom-po-iva-mcu/
+https://test2023.hi-tech.org/press/news/khaytek-integratsiya-stala-sertifitsirovannym-partnerom-gelarm/
+https://test2023.hi-tech.org/press/news/khaytek-podnyalsya-v-reytinge-raex/
+https://test2023.hi-tech.org/press/news/mannequin-challenge-at-hi-tech/
+https://test2023.hi-tech.org/press/news/ntts-vellink-i-khaytek-integratsiya-obyavlyayut-o-partnerstve-v-oblasti-it-monitoringa/
+https://test2023.hi-tech.org/press/news/roman-volkov-was-appointed-general-director-of-hitech/
+https://test2023.hi-tech.org/press/news/russian-telecommunications-equipment-iva-was-presented-to-the-minister-of-communications-and-mass-media/
+https://test2023.hi-tech.org/press/news/sergey-chernykh-na-pmef-2024-integratory-krovenosnaya-sistema-it-rynka/
+https://test2023.hi-tech.org/press/news/tgu-i-khaytek-integratsiya-zaklyuchili-coglashenie-o-strategicheskom-sotrudnichestve/
+https://test2023.hi-tech.org/press/news/the-hitech-company-is-among-the-largest-it-companies-in-russia/
+https://test2023.hi-tech.org/press/news/the-hitech-company-is-the-official-partner-of-the-cipr-2017-conference/
+https://test2023.hi-tech.org/projects/
+https://test2023.hi-tech.org/projects/cc-moscow/
+https://test2023.hi-tech.org/projects/ctroitelno-montazhnye-raboty-administratsiya-g-o-balashikha/
+https://test2023.hi-tech.org/projects/installation-ventilation-systems-urban-group/
+https://test2023.hi-tech.org/projects/modernization-data-storage-system-soglasie/
+https://test2023.hi-tech.org/projects/montazh-strukturirovannoy-kabelnoy-sistemy-finansovyy-universitet-pri-pravitelstve-rf/
+https://test2023.hi-tech.org/projects/postavka-programmnogo-obespecheniya-binbank/
+https://test2023.hi-tech.org/projects/postroenie-it-infrastruktury-ppg-industries/
+https://test2023.hi-tech.org/projects/reconstruction-building-derviz-estate-vniiem/
+https://test2023.hi-tech.org/solutions/
+https://test2023.hi-tech.org/solutions/contact-centers/
+https://test2023.hi-tech.org/solutions/industriya-4-0/
+https://test2023.hi-tech.org/solutions/information-security/
+https://test2023.hi-tech.org/solutions/inzhenernye-sistemy/
+https://test2023.hi-tech.org/solutions/it-infrastruktura/
+https://test2023.hi-tech.org/solutions/multimediynye-sistemy/
+https://test2023.hi-tech.org/solutions/seti-i-telekommunikatsii/
+https://test2023.hi-tech.org/solutions/sistemy-tekhnicheskoy-bezopasnosti/
+https://www.hi-tech.org/
+https://www.hi-tech.org/about/
+https://www.hi-tech.org/about/career/
+https://www.hi-tech.org/about/it-accreditation/
+https://www.hi-tech.org/about/licenses/
+https://www.hi-tech.org/about/reviews/
+https://www.hi-tech.org/bitrix/cache/css/s1/hitech/page_6e2cd993e79bded787ed8f1ee1faaabd/page_6e2cd993e79bded787ed8f1ee1faaabd_v1.css?1767372023401
+https://www.hi-tech.org/bitrix/cache/css/s1/hitech/page_6f09e813cad0f9632898983f437d4785/page_6f09e813cad0f9632898983f437d4785_v1.css?1767361832393
+https://www.hi-tech.org/bitrix/cache/css/s1/hitech/page_cf3641a5ca694d378237dff89c1e35cf/page_cf3641a5ca694d378237dff89c1e35cf_v1.css?1767378271338
+https://www.hi-tech.org/bitrix/cache/css/s1/hitech/page_dc87d5ce03ca354e357056231fdfd467/page_dc87d5ce03ca354e357056231fdfd467_v1.css?1767361837403
+https://www.hi-tech.org/bitrix/cache/css/s1/hitech/page_f886be79a023f0b4aa08003264db86ce/page_f886be79a023f0b4aa08003264db86ce_v1.css?1767364714693
+https://www.hi-tech.org/bitrix/cache/css/s1/hitech/template_2ee6b9a220656ef03588da775b6f710e/template_2ee6b9a220656ef03588da775b6f710e_v1.css?17673616431660
+https://www.hi-tech.org/bitrix/cache/css/s1/hitech/template_ff97960b88b8c7fbf6d5fe06a1c37381/template_ff97960b88b8c7fbf6d5fe06a1c37381_v1.css?17673616772134
+https://www.hi-tech.org/bitrix/cache/js/s1/hitech/page_ae656074d2b8791618cc9508ca50158d/page_ae656074d2b8791618cc9508ca50158d_v1.js?17673616432326
+https://www.hi-tech.org/clients/
+https://www.hi-tech.org/confidential/
+https://www.hi-tech.org/contacts/
+https://www.hi-tech.org/finance/
+https://www.hi-tech.org/local/get/?ACTION=FORM
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=250
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=251
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=252
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=253
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=254
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=255
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=256
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=442
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=443
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=444
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=445
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=446
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=447
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=448
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=449
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=450
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=452
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=453
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=454
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=455
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=456
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=457
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=458
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=459
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=460
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=461
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=462
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=463
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=464
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=465
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=466
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=467
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=468
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=469
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=470
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=552
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=553
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=554
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=555
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=556
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=557
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=558
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=559
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=560
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=561
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=562
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=563
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=564
+https://www.hi-tech.org/local/get/?ACTION=SERVICE&EL=565
+https://www.hi-tech.org/local/templates/hitech/assets/css/bundle.css?v=c4e9a6b3
+https://www.hi-tech.org/local/templates/hitech/assets/favicons/manifest.json?v=c4e9a6b3
+https://www.hi-tech.org/local/templates/hitech/assets/js/bundle.js?v=c4e9a6b3
+https://www.hi-tech.org/local/templates/hitech/assets_cms/add.css?v=c4e9a6b3
+https://www.hi-tech.org/local/templates/hitech/assets_cms/script.js?v=c4e9a6b3
+https://www.hi-tech.org/partners/
+https://www.hi-tech.org/personal-policy/
+https://www.hi-tech.org/press/
+https://www.hi-tech.org/press/blog/
+https://www.hi-tech.org/press/events/
+https://www.hi-tech.org/press/news/
+https://www.hi-tech.org/press/news/akvarius-vypustil-dyuzhinu-novykh-klientskikh-ustroystv/
+https://www.hi-tech.org/press/news/exeplant-fabricaone-ai-aktsioner-gk-softline-i-khaytek-integratsiya-zaklyuchili-soglashenie-o-partne/
+https://www.hi-tech.org/press/news/gokhran-rossii-vybral-otechestvennuyu-ip-ats/
+https://www.hi-tech.org/press/news/hitech-expands-the-pool-of-partners/
+https://www.hi-tech.org/press/news/hitech-received-sapphire-avaya-partner-status/
+https://www.hi-tech.org/press/news/hitech-supported-the-holding-of-an-open-hand-to-hand-combat-tournament-in-akhtubinsk/
+https://www.hi-tech.org/press/news/khaytek-integratsiya-i-ctrl2go-solutions-dogovorilis-o-partnerstve/
+https://www.hi-tech.org/press/news/khaytek-integratsiya-i-dis-group-dogovorilis-o-sovmestnom-prodvizhenii-rossiyskikh-resheniy-dlya-tsi/
+https://www.hi-tech.org/press/news/khaytek-integratsiya-i-robusta-tekhnologii-sovmestno-zaymutsya-proektami-v-oblasti-biznes-analitiki/
+https://www.hi-tech.org/press/news/khaytek-integratsiya-postroila-edinyy-kontakt-tsentr-dlya-tsentra-korporativnykh-resheniy-tskr/
+https://www.hi-tech.org/press/news/khaytek-integratsiya-priobrela-70-doli-v-razrabotchike-proizvodstvennogo-po-bfg-group/
+https://www.hi-tech.org/press/news/khaytek-integratsiya-stal-ofitsialnym-partnerom-rr-tech/
+https://www.hi-tech.org/press/news/khaytek-integratsiya-stala-ekspertom-po-iva-mcu/
+https://www.hi-tech.org/press/news/khaytek-integratsiya-stala-sertifitsirovannym-partnerom-gelarm/
+https://www.hi-tech.org/press/news/khaytek-podnyalsya-v-reytinge-raex/
+https://www.hi-tech.org/press/news/ntts-vellink-i-khaytek-integratsiya-obyavlyayut-o-partnerstve-v-oblasti-it-monitoringa/
+https://www.hi-tech.org/press/news/russian-telecommunications-equipment-iva-was-presented-to-the-minister-of-communications-and-mass-media/
+https://www.hi-tech.org/press/news/sergey-chernykh-na-pmef-2024-integratory-krovenosnaya-sistema-it-rynka/
+https://www.hi-tech.org/press/news/tgu-i-khaytek-integratsiya-zaklyuchili-coglashenie-o-strategicheskom-sotrudnichestve/
+https://www.hi-tech.org/press/news/the-hitech-company-is-among-the-largest-it-companies-in-russia/
+https://www.hi-tech.org/projects/
+https://www.hi-tech.org/projects/cc-moscow/
+https://www.hi-tech.org/projects/ctroitelno-montazhnye-raboty-administratsiya-g-o-balashikha/
+https://www.hi-tech.org/projects/installation-ventilation-systems-urban-group/
+https://www.hi-tech.org/projects/modernization-data-storage-system-soglasie/
+https://www.hi-tech.org/projects/montazh-strukturirovannoy-kabelnoy-sistemy-finansovyy-universitet-pri-pravitelstve-rf/
+https://www.hi-tech.org/projects/postavka-programmnogo-obespecheniya-binbank/
+https://www.hi-tech.org/projects/postroenie-it-infrastruktury-ppg-industries/
+https://www.hi-tech.org/projects/reconstruction-building-derviz-estate-vniiem/
+https://www.hi-tech.org/solutions/
+https://www.hi-tech.org/solutions/contact-centers/
+https://www.hi-tech.org/solutions/industriya-4-0/
+https://www.hi-tech.org/solutions/information-security/
+https://www.hi-tech.org/solutions/inzhenernye-sistemy/
+https://www.hi-tech.org/solutions/it-infrastruktura/
+https://www.hi-tech.org/solutions/multimediynye-sistemy/
+https://www.hi-tech.org/solutions/seti-i-telekommunikatsii/
+https://www.hi-tech.org/solutions/sistemy-tekhnicheskoy-bezopasnosti/
+Google Dorking
+Автопроверка: проверено 42; с результатами 1; пустые скрыты 41; с ошибками 8.
+Статус автодоркинга: частично ограничен внешними источниками
+Это не уязвимость и не падение сервиса. Часть автоматических запросов к поисковикам/индексам не выполнилась: SSL handshake timeout, timeout, антибот/капча. Найденные результаты сохранены, но выдача может быть неполной.
+bing: 4
+duckduckgo: 4
+duckduckgo_lite: 4
+google: 4
+yahoo: 4
+commoncrawl CC-MAIN-2026-25 ods: 1
+Показать технические детали доркинга
+- google: dork 'PDF-документы' не выполнен: google: поисковик ограничил автоматический запрос, HTTP 429
+- duckduckgo: dork 'PDF-документы' не выполнен: The read operation timed out
+- bing: dork 'PDF-документы' не выполнен: bing: поисковик показал антибот/капчу
+- duckduckgo_lite: dork 'Word-документы DOC' не выполнен: <urlopen error _ssl.c:993: The handshake operation timed out>
+- google: dork 'Word-документы DOC' не выполнен: google: поисковик ограничил автоматический запрос, HTTP 429
+- bing: dork 'Word-документы DOC' не выполнен: bing: поисковик показал антибот/капчу
+- google: dork 'Word-документы DOCX' не выполнен: google: поисковик ограничил автоматический запрос, HTTP 429
+- google: автопоиск временно остановлен после серии блокировок/таймаутов, чтобы не усиливать антибот-ограничения
+- bing: dork 'Word-документы DOCX' не выполнен: bing: поисковик показал антибот/капчу
+- bing: автопоиск временно остановлен после серии блокировок/таймаутов, чтобы не усиливать антибот-ограничения
+- yahoo: dork 'Excel-документы XLS' не выполнен: <urlopen error _ssl.c:993: The handshake operation timed out>
+- duckduckgo_lite: dork 'Презентации PPT' не выполнен: <urlopen error _ssl.c:993: The handshake operation timed out>
+- duckduckgo: dork 'Презентации PPT' не выполнен: <urlopen error _ssl.c:993: The handshake operation timed out>
+- yahoo: dork 'Презентации PPTX' не выполнен: <urlopen error _ssl.c:993: The handshake operation timed out>
+- duckduckgo_lite: dork 'RTF-документы' не выполнен: <urlopen error _ssl.c:993: The handshake operation timed out>
+- duckduckgo_lite: автопоиск временно остановлен после серии блокировок/таймаутов, чтобы не усиливать антибот-ограничения
+- duckduckgo: dork 'RTF-документы' не выполнен: <urlopen error _ssl.c:993: The handshake operation timed out>
+- duckduckgo: автопоиск временно остановлен после серии блокировок/таймаутов, чтобы не усиливать антибот-ограничения
+- yahoo: dork 'Открытые env/config-файлы' не выполнен: <urlopen error _ssl.c:993: The handshake operation timed out>
+- yahoo: автопоиск временно остановлен после серии блокировок/таймаутов, чтобы не усиливать антибот-ограничения
+- commoncrawl CC-MAIN-2026-25 ods: <urlopen error _ssl.c:993: The handshake operation timed out>
+PDF-документы
+site:hi-tech.org filetype:pdf
+Google
+Bing
+DuckDuckGo
+Автоматическая выдача поисковиков
+Источник
+Dork
+Заголовок
+URL
+duckduckgo_lite
+PDF-документы
+PDF Презентация PowerPoint
+https://hi-tech.org/upload/Hitech_Integration_2024.pdf
+duckduckgo_lite
+PDF-документы
+PDF Российский системный интегратор
+https://hi-tech.org/upload/hitech-2022.pdf
+duckduckgo_lite
+PDF-документы
+PDF Терентье - hi-tech.org
+https://hi-tech.org/upload/iblock/c0d/gp418go9vuxr18y2da8d9q8y5olgal0y.pdf
+duckduckgo_lite
+PDF-документы
+PDF ПЕРЕЧЕНЬ инсайдерской информации Общества с огран
+https://hi-tech.org/upload/iblock/173/1gpegtbur0ru3xorl1w7up6389aekqx6.pdf
+Артефакты модулей
+ct_subdomains
+{
+"count": 0,
+"source_counts": {},
+"source_errors": {
+"crt.sh": "The read operation timed out",
+"certspotter": "<urlopen error _ssl.c:993: The handshake operation timed out>"
+}
+}
+urlscan
+{
+"url_count": 3,
+"sample_urls": [
+"https://mail-hti.hi-tech.org/owa/auth/logon.aspx?url=https%3a%2f%2fmail-hti.hi-tech.org%2fowa%2f&reason=0",
+"https://ivcs.hi-tech.org/v2/iva/home",
+"https://ivcs.hi-tech.org/v2/iva/home"
+]
+}
+dork_builder
+{
+"dorks": [
+{
+"title": "PDF-документы",
+"query": "site:hi-tech.org filetype:pdf",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+filetype%3Apdf",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+filetype%3Apdf",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+filetype%3Apdf"
+},
+{
+"title": "Word-документы DOC",
+"query": "site:hi-tech.org filetype:doc",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+filetype%3Adoc",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+filetype%3Adoc",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+filetype%3Adoc"
+},
+{
+"title": "Word-документы DOCX",
+"query": "site:hi-tech.org filetype:docx",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+filetype%3Adocx",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+filetype%3Adocx",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+filetype%3Adocx"
+},
+{
+"title": "Excel-документы XLS",
+"query": "site:hi-tech.org filetype:xls",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+filetype%3Axls",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+filetype%3Axls",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+filetype%3Axls"
+},
+{
+"title": "Excel-документы XLSX",
+"query": "site:hi-tech.org filetype:xlsx",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+filetype%3Axlsx",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+filetype%3Axlsx",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+filetype%3Axlsx"
+},
+{
+"title": "Презентации PPT",
+"query": "site:hi-tech.org filetype:ppt",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+filetype%3Appt",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+filetype%3Appt",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+filetype%3Appt"
+},
+{
+"title": "Презентации PPTX",
+"query": "site:hi-tech.org filetype:pptx",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+filetype%3Apptx",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+filetype%3Apptx",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+filetype%3Apptx"
+},
+{
+"title": "RTF-документы",
+"query": "site:hi-tech.org filetype:rtf",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+filetype%3Artf",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+filetype%3Artf",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+filetype%3Artf"
+},
+"... еще 34 записей; полный список есть в report.json или отдельном артефакте"
+],
+"google_dorks_txt": {
+"path": "reports/hi-tech-pentest/google-dorks.txt",
+"exists": true,
+"bytes": 3358
+},
+"dork_links_markdown": {
+"path": "reports/hi-tech-pentest/dork-links.md",
+"exists": true,
+"bytes": 23257
+},
+"auto_dork_summary": [
+{
+"title": "PDF-документы",
+"query": "site:hi-tech.org filetype:pdf",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+filetype%3Apdf",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+filetype%3Apdf",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+filetype%3Apdf",
+"result_count": 4,
+"errors": [
+"google: dork 'PDF-документы' не выполнен: google: поисковик ограничил автоматический запрос, HTTP 429",
+"duckduckgo: dork 'PDF-документы' не выполнен: The read operation timed out",
+"bing: dork 'PDF-документы' не выполнен: bing: поисковик показал антибот/капчу"
+]
+},
+{
+"title": "Word-документы DOC",
+"query": "site:hi-tech.org filetype:doc",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+filetype%3Adoc",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+filetype%3Adoc",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+filetype%3Adoc",
+"result_count": 0,
+"errors": [
+"duckduckgo_lite: dork 'Word-документы DOC' не выполнен: <urlopen error _ssl.c:993: The handshake operation timed out>",
+"google: dork 'Word-документы DOC' не выполнен: google: поисковик ограничил автоматический запрос, HTTP 429",
+"bing: dork 'Word-документы DOC' не выполнен: bing: поисковик показал антибот/капчу"
+]
+},
+{
+"title": "Word-документы DOCX",
+"query": "site:hi-tech.org filetype:docx",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+filetype%3Adocx",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+filetype%3Adocx",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+filetype%3Adocx",
+"result_count": 0,
+"errors": [
+"google: dork 'Word-документы DOCX' не выполнен: google: поисковик ограничил автоматический запрос, HTTP 429",
+"bing: dork 'Word-документы DOCX' не выполнен: bing: поисковик показал антибот/капчу"
+]
+},
+{
+"title": "Excel-документы XLS",
+"query": "site:hi-tech.org filetype:xls",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+filetype%3Axls",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+filetype%3Axls",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+filetype%3Axls",
+"result_count": 0,
+"errors": [
+"yahoo: dork 'Excel-документы XLS' не выполнен: <urlopen error _ssl.c:993: The handshake operation timed out>"
+]
+},
+{
+"title": "Excel-документы XLSX",
+"query": "site:hi-tech.org filetype:xlsx",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+filetype%3Axlsx",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+filetype%3Axlsx",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+filetype%3Axlsx",
+"result_count": 0,
+"errors": []
+},
+{
+"title": "Презентации PPT",
+"query": "site:hi-tech.org filetype:ppt",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+filetype%3Appt",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+filetype%3Appt",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+filetype%3Appt",
+"result_count": 0,
+"errors": [
+"duckduckgo_lite: dork 'Презентации PPT' не выполнен: <urlopen error _ssl.c:993: The handshake operation timed out>",
+"duckduckgo: dork 'Презентации PPT' не выполнен: <urlopen error _ssl.c:993: The handshake operation timed out>"
+]
+},
+{
+"title": "Презентации PPTX",
+"query": "site:hi-tech.org filetype:pptx",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+filetype%3Apptx",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+filetype%3Apptx",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+filetype%3Apptx",
+"result_count": 0,
+"errors": [
+"yahoo: dork 'Презентации PPTX' не выполнен: <urlopen error _ssl.c:993: The handshake operation timed out>"
+]
+},
+{
+"title": "RTF-документы",
+"query": "site:hi-tech.org filetype:rtf",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+filetype%3Artf",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+filetype%3Artf",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+filetype%3Artf",
+"result_count": 0,
+"errors": [
+"duckduckgo_lite: dork 'RTF-документы' не выполнен: <urlopen error _ssl.c:993: The handshake operation timed out>",
+"duckduckgo: dork 'RTF-документы' не выполнен: <urlopen error _ssl.c:993: The handshake operation timed out>"
+]
+},
+{
+"title": "Открытые env/config-файлы",
+"query": "site:hi-tech.org (ext:env OR ext:yml OR ext:yaml OR ext:ini OR ext:conf)",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+%28ext%3Aenv+OR+ext%3Ayml+OR+ext%3Ayaml+OR+ext%3Aini+OR+ext%3Aconf%29",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+%28ext%3Aenv+OR+ext%3Ayml+OR+ext%3Ayaml+OR+ext%3Aini+OR+ext%3Aconf%29",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+%28ext%3Aenv+OR+ext%3Ayml+OR+ext%3Ayaml+OR+ext%3Aini+OR+ext%3Aconf%29",
+"result_count": 0,
+"errors": [
+"yahoo: dork 'Открытые env/config-файлы' не выполнен: <urlopen error _ssl.c:993: The handshake operation timed out>"
+]
+},
+{
+"title": "Открытые dotenv и секреты",
+"query": "site:hi-tech.org (filetype:env OR inurl:.env OR intext:DB_PASSWORD OR intext:API_KEY)",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+%28filetype%3Aenv+OR+inurl%3A.env+OR+intext%3ADB_PASSWORD+OR+intext%3AAPI_KEY%29",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+%28filetype%3Aenv+OR+inurl%3A.env+OR+intext%3ADB_PASSWORD+OR+intext%3AAPI_KEY%29",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+%28filetype%3Aenv+OR+inurl%3A.env+OR+intext%3ADB_PASSWORD+OR+intext%3AAPI_KEY%29",
+"result_count": 0,
+"errors": []
+},
+{
+"title": "Конфигурации приложений",
+"query": "site:hi-tech.org (filetype:json OR filetype:xml OR filetype:toml OR filetype:properties)",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+%28filetype%3Ajson+OR+filetype%3Axml+OR+filetype%3Atoml+OR+filetype%3Aproperties%29",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+%28filetype%3Ajson+OR+filetype%3Axml+OR+filetype%3Atoml+OR+filetype%3Aproperties%29",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+%28filetype%3Ajson+OR+filetype%3Axml+OR+filetype%3Atoml+OR+filetype%3Aproperties%29",
+"result_count": 0,
+"errors": []
+},
+{
+"title": "Kubernetes и Docker-конфиги",
+"query": "site:hi-tech.org (filetype:kubeconfig OR filetype:dockerfile OR filename:docker-compose.yml OR intext:kubeconfig)",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+%28filetype%3Akubeconfig+OR+filetype%3Adockerfile+OR+filename%3Adocker-compose.yml+OR+intext%3Akubeconfig%29",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+%28filetype%3Akubeconfig+OR+filetype%3Adockerfile+OR+filename%3Adocker-compose.yml+OR+intext%3Akubeconfig%29",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+%28filetype%3Akubeconfig+OR+filetype%3Adockerfile+OR+filename%3Adocker-compose.yml+OR+intext%3Akubeconfig%29",
+"result_count": 0,
+"errors": []
+},
+{
+"title": "Индексируемые директории",
+"query": "site:hi-tech.org intitle:\"index of\"",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+intitle%3A%22index+of%22",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+intitle%3A%22index+of%22",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+intitle%3A%22index+of%22",
+"result_count": 0,
+"errors": []
+},
+{
+"title": "Дампы баз данных",
+"query": "site:hi-tech.org (ext:sql OR ext:sqlite OR ext:db OR ext:dump)",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+%28ext%3Asql+OR+ext%3Asqlite+OR+ext%3Adb+OR+ext%3Adump%29",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+%28ext%3Asql+OR+ext%3Asqlite+OR+ext%3Adb+OR+ext%3Adump%29",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+%28ext%3Asql+OR+ext%3Asqlite+OR+ext%3Adb+OR+ext%3Adump%29",
+"result_count": 0,
+"errors": []
+},
+{
+"title": "Дампы и экспорты данных",
+"query": "site:hi-tech.org (filetype:csv OR filetype:tsv OR filetype:json OR filetype:xml) (password OR token OR secret OR email)",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+%28filetype%3Acsv+OR+filetype%3Atsv+OR+filetype%3Ajson+OR+filetype%3Axml%29+%28password+OR+token+OR+secret+OR+email%29",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+%28filetype%3Acsv+OR+filetype%3Atsv+OR+filetype%3Ajson+OR+filetype%3Axml%29+%28password+OR+token+OR+secret+OR+email%29",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+%28filetype%3Acsv+OR+filetype%3Atsv+OR+filetype%3Ajson+OR+filetype%3Axml%29+%28password+OR+token+OR+secret+OR+email%29",
+"result_count": 0,
+"errors": []
+},
+{
+"title": "Архивы и бэкапы",
+"query": "site:hi-tech.org (ext:zip OR ext:tar OR ext:gz OR ext:7z OR ext:bak OR ext:old)",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+%28ext%3Azip+OR+ext%3Atar+OR+ext%3Agz+OR+ext%3A7z+OR+ext%3Abak+OR+ext%3Aold%29",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+%28ext%3Azip+OR+ext%3Atar+OR+ext%3Agz+OR+ext%3A7z+OR+ext%3Abak+OR+ext%3Aold%29",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+%28ext%3Azip+OR+ext%3Atar+OR+ext%3Agz+OR+ext%3A7z+OR+ext%3Abak+OR+ext%3Aold%29",
+"result_count": 0,
+"errors": []
+},
+{
+"title": "Расширенные бэкапы",
+"query": "site:hi-tech.org (filetype:rar OR filetype:tgz OR filetype:bz2 OR filetype:backup OR filetype:swp)",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+%28filetype%3Arar+OR+filetype%3Atgz+OR+filetype%3Abz2+OR+filetype%3Abackup+OR+filetype%3Aswp%29",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+%28filetype%3Arar+OR+filetype%3Atgz+OR+filetype%3Abz2+OR+filetype%3Abackup+OR+filetype%3Aswp%29",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+%28filetype%3Arar+OR+filetype%3Atgz+OR+filetype%3Abz2+OR+filetype%3Abackup+OR+filetype%3Aswp%29",
+"result_count": 0,
+"errors": []
+},
+{
+"title": "Логи",
+"query": "site:hi-tech.org (ext:log OR inurl:logs)",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+%28ext%3Alog+OR+inurl%3Alogs%29",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+%28ext%3Alog+OR+inurl%3Alogs%29",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+%28ext%3Alog+OR+inurl%3Alogs%29",
+"result_count": 0,
+"errors": []
+},
+{
+"title": "Отчеты об ошибках и stack traces",
+"query": "site:hi-tech.org (intext:\"Traceback\" OR intext:\"stack trace\" OR intext:\"Fatal error\" OR intext:\"Exception\")",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+%28intext%3A%22Traceback%22+OR+intext%3A%22stack+trace%22+OR+intext%3A%22Fatal+error%22+OR+intext%3A%22Exception%22%29",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+%28intext%3A%22Traceback%22+OR+intext%3A%22stack+trace%22+OR+intext%3A%22Fatal+error%22+OR+intext%3A%22Exception%22%29",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+%28intext%3A%22Traceback%22+OR+intext%3A%22stack+trace%22+OR+intext%3A%22Fatal+error%22+OR+intext%3A%22Exception%22%29",
+"result_count": 0,
+"errors": []
+},
+{
+"title": "Админки и страницы входа",
+"query": "site:hi-tech.org (inurl:admin OR inurl:login OR intitle:admin)",
+"google": "https://www.google.com/search?q=site%3Ahi-tech.org+%28inurl%3Aadmin+OR+inurl%3Alogin+OR+intitle%3Aadmin%29",
+"bing": "https://www.bing.com/search?q=site%3Ahi-tech.org+%28inurl%3Aadmin+OR+inurl%3Alogin+OR+intitle%3Aadmin%29",
+"duckduckgo": "https://duckduckgo.com/html/?q=site%3Ahi-tech.org+%28inurl%3Aadmin+OR+inurl%3Alogin+OR+intitle%3Aadmin%29",
+"result_count": 0,
+"errors": []
+},
+"... еще 22 записей; полный список есть в report.json или отдельном артефакте"
+],
+"search_result_count": 4,
+"search_results": [
+{
+"engine": "duckduckgo_lite",
+"dork_title": "PDF-документы",
+"query": "site:hi-tech.org filetype:pdf",
+"title": "PDF Презентация PowerPoint",
+"url": "https://hi-tech.org/upload/Hitech_Integration_2024.pdf",
+"owned_url": true
+},
+{
+"engine": "duckduckgo_lite",
+"dork_title": "PDF-документы",
+"query": "site:hi-tech.org filetype:pdf",
+"title": "PDF Российский системный интегратор",
+"url": "https://hi-tech.org/upload/hitech-2022.pdf",
+"owned_url": true
+},
+{
+"engine": "duckduckgo_lite",
+"dork_title": "PDF-документы",
+"query": "site:hi-tech.org filetype:pdf",
+"title": "PDF Терентье - hi-tech.org",
+"url": "https://hi-tech.org/upload/iblock/c0d/gp418go9vuxr18y2da8d9q8y5olgal0y.pdf",
+"owned_url": true
+},
+{
+"engine": "duckduckgo_lite",
+"dork_title": "PDF-документы",
+"query": "site:hi-tech.org filetype:pdf",
+"title": "PDF ПЕРЕЧЕНЬ инсайдерской информации Общества с огран",
+"url": "https://hi-tech.org/upload/iblock/173/1gpegtbur0ru3xorl1w7up6389aekqx6.pdf",
+"owned_url": true
+}
+],
+"search_results_jsonl": {
+"path": "reports/hi-tech-pentest/dork-search-results.jsonl",
+"exists": true,
+"bytes": 1096
+},
+"document_search_results": {
+"total": 4,
+"by_type": {
+"pdf": 4
+},
+"sample": [
+{
+"url": "https://hi-tech.org/upload/Hitech_Integration_2024.pdf",
+"extension": "pdf",
+"engine": "duckduckgo_lite",
+"dork_title": "PDF-документы",
+"title": "PDF Презентация PowerPoint"
+},
+{
+"url": "https://hi-tech.org/upload/hitech-2022.pdf",
+"extension": "pdf",
+"engine": "duckduckgo_lite",
+"dork_title": "PDF-документы",
+"title": "PDF Российский системный интегратор"
+},
+{
+"url": "https://hi-tech.org/upload/iblock/173/1gpegtbur0ru3xorl1w7up6389aekqx6.pdf",
+"extension": "pdf",
+"engine": "duckduckgo_lite",
+"dork_title": "PDF-документы",
+"title": "PDF ПЕРЕЧЕНЬ инсайдерской информации Общества с огран"
+},
+{
+"url": "https://hi-tech.org/upload/iblock/c0d/gp418go9vuxr18y2da8d9q8y5olgal0y.pdf",
+"extension": "pdf",
+"engine": "duckduckgo_lite",
+"dork_title": "PDF-документы",
+"title": "PDF Терентье - hi-tech.org"
+}
+],
+"artifact": {
+"path": "reports/hi-tech-pentest/dork-document-results.jsonl",
+"exists": true,
+"bytes": 932
+}
+},
+"public_documents": {
+"total": 3,
+"by_type": {
+"pdf": 3
+},
+"by_host": {
+"hi-tech.org": 3
+},
+"keyword_matches": 0,
+"sample": [
+{
+"url": "https://hi-tech.org/upload/hitech-2022.pdf",
+"extension": "pdf",
+"engine": "duckduckgo_lite",
+"dork_title": "PDF-документы",
+"title": "PDF Российский системный интегратор",
+"host": "hi-tech.org",
+"keyword_match": "no",
+"status_code": "206",
+"content_type": "application/pdf",
+"verified": "yes"
+},
+{
+"url": "https://hi-tech.org/upload/iblock/173/1gpegtbur0ru3xorl1w7up6389aekqx6.pdf",
+"extension": "pdf",
+"engine": "duckduckgo_lite",
+"dork_title": "PDF-документы",
+"title": "PDF ПЕРЕЧЕНЬ инсайдерской информации Общества с огран",
+"host": "hi-tech.org",
+"keyword_match": "no",
+"status_code": "206",
+"content_type": "application/pdf",
+"verified": "yes"
+},
+{
+"url": "https://hi-tech.org/upload/iblock/c0d/gp418go9vuxr18y2da8d9q8y5olgal0y.pdf",
+"extension": "pdf",
+"engine": "duckduckgo_lite",
+"dork_title": "PDF-документы",
+"title": "PDF Терентье - hi-tech.org",
+"host": "hi-tech.org",
+"keyword_match": "no",
+"status_code": "206",
+"content_type": "application/pdf",
+"verified": "yes"
+}
+],
+"documents": [
+{
+"url": "https://hi-tech.org/upload/hitech-2022.pdf",
+"extension": "pdf",
+"engine": "duckduckgo_lite",
+"dork_title": "PDF-документы",
+"title": "PDF Российский системный интегратор",
+"host": "hi-tech.org",
+"keyword_match": "no",
+"status_code": "206",
+"content_type": "application/pdf",
+"verified": "yes"
+},
+{
+"url": "https://hi-tech.org/upload/iblock/173/1gpegtbur0ru3xorl1w7up6389aekqx6.pdf",
+"extension": "pdf",
+"engine": "duckduckgo_lite",
+"dork_title": "PDF-документы",
+"title": "PDF ПЕРЕЧЕНЬ инсайдерской информации Общества с огран",
+"host": "hi-tech.org",
+"keyword_match": "no",
+"status_code": "206",
+"content_type": "application/pdf",
+"verified": "yes"
+},
+{
+"url": "https://hi-tech.org/upload/iblock/c0d/gp418go9vuxr18y2da8d9q8y5olgal0y.pdf",
+"extension": "pdf",
+"engine": "duckduckgo_lite",
+"dork_title": "PDF-документы",
+"title": "PDF Терентье - hi-tech.org",
+"host": "hi-tech.org",
+"keyword_match": "no",
+"status_code": "206",
+"content_type": "application/pdf",
+"verified": "yes"
+}
+],
+"full_list": {
+"path": "reports/hi-tech-pentest/indexed-public-documents.jsonl",
+"exists": true,
+"bytes": 1093
+},
+"checked_total": 4,
+"rejected_total": 1,
+"source": "current_index_search"
+},
+"index_search_errors": [
+"commoncrawl CC-MAIN-2026-25 ods: <urlopen error _ssl.c:993: The handshake operation timed out>"
+],
+"search_errors": [
+"google: dork 'PDF-документы' не выполнен: google: поисковик ограничил автоматический запрос, HTTP 429",
+"duckduckgo: dork 'PDF-документы' не выполнен: The read operation timed out",
+"bing: dork 'PDF-документы' не выполнен: bing: поисковик показал антибот/капчу",
+"duckduckgo_lite: dork 'Word-документы DOC' не выполнен: <urlopen error _ssl.c:993: The handshake operation timed out>",
+"google: dork 'Word-документы DOC' не выполнен: google: поисковик ограничил автоматический запрос, HTTP 429",
+"bing: dork 'Word-документы DOC' не выполнен: bing: поисковик показал антибот/капчу",
+"google: dork 'Word-документы DOCX' не выполнен: google: поисковик ограничил автоматический запрос, HTTP 429",
+"google: автопоиск временно остановлен после серии блокировок/таймаутов, чтобы не усиливать антибот-ограничения",
+"bing: dork 'Word-документы DOCX' не выполнен: bing: поисковик показал антибот/капчу",
+"bing: автопоиск временно остановлен после серии блокировок/таймаутов, чтобы не усиливать антибот-ограничения",
+"yahoo: dork 'Excel-документы XLS' не выполнен: <urlopen error _ssl.c:993: The handshake operation timed out>",
+"duckduckgo_lite: dork 'Презентации PPT' не выполнен: <urlopen error _ssl.c:993: The handshake operation timed out>",
+"duckduckgo: dork 'Презентации PPT' не выполнен: <urlopen error _ssl.c:993: The handshake operation timed out>",
+"yahoo: dork 'Презентации PPTX' не выполнен: <urlopen error _ssl.c:993: The handshake operation timed out>",
+"duckduckgo_lite: dork 'RTF-документы' не выполнен: <urlopen error _ssl.c:993: The handshake operation timed out>",
+"duckduckgo_lite: автопоиск временно остановлен после серии блокировок/таймаутов, чтобы не усиливать антибот-ограничения",
+"duckduckgo: dork 'RTF-документы' не выполнен: <urlopen error _ssl.c:993: The handshake operation timed out>",
+"duckduckgo: автопоиск временно остановлен после серии блокировок/таймаутов, чтобы не усиливать антибот-ограничения",
+"yahoo: dork 'Открытые env/config-файлы' не выполнен: <urlopen error _ssl.c:993: The handshake operation timed out>",
+"yahoo: автопоиск временно остановлен после серии блокировок/таймаутов, чтобы не усиливать антибот-ограничения"
+]
+}
+http_probe
+{
+"live_count": 2
+}
+tls
+{
+"checked_hosts": 2
+}
+projectdiscovery
+{
+"subfinder_count": 36,
+"dnsx_resolved": 37,
+"httpx_live": 8,
+"httpx_live_hosts": 8,
+"httpx_checked_hosts": 37,
+"naabu_reported_ports": 642,
+"naabu_reported_ports_by_host": {
+"1c-server.hi-tech.org": [
+110,
+389,
+1027,
+3986,
+8081,
+8888,
+49157
+],
+"7twenty.hi-tech.org": [
+110,
+389,
+1027,
+3986,
+8081,
+8888,
+49157
+],
+"aads.hi-tech.org": [
+53,
+88,
+111,
+119,
+135,
+514,
+544,
+554,
+990,
+995,
+1026,
+1027,
+2717,
+5060,
+5800,
+6001,
+9100,
+49155
+],
+"aawg.hi-tech.org": [
+53,
+88,
+111,
+119,
+135,
+514,
+544,
+554,
+990,
+995,
+1026,
+1027,
+2717,
+5060,
+5800,
+6001,
+9100,
+49155
+],
+"autodiscover.hi-tech.org": [
+25,
+26,
+144,
+444,
+465,
+548,
+587,
+2000,
+2049,
+3389,
+4899,
+6001,
+8080,
+10000,
+49153,
+49154,
+49156
+],
+"breeze-sm100.hi-tech.org": [
+53,
+88,
+111,
+119,
+135,
+514,
+544,
+554,
+990,
+995,
+1026,
+1027,
+2717,
+5060,
+5800,
+6001,
+9100,
+49155
+],
+"cloud.hi-tech.org": [
+110,
+389,
+1027,
+3986,
+8081,
+8888,
+49157
+],
+"hi-tech.org": [
+21,
+135,
+544,
+1900
+],
+"hti-vpn1.hi-tech.org": [
+13,
+23,
+79,
+143,
+443,
+515,
+587,
+1723,
+1900,
+3000,
+4899,
+5051,
+5432,
+5800,
+7070,
+49153,
+49155,
+49157
+],
+"iva.portal.hi-tech.org": [
+13,
+53,
+110,
+389,
+543,
+873,
+1027,
+2000,
+2049,
+3986,
+5101,
+7070,
+8009
+],
+"ivcs.hi-tech.org": [
+21,
+26,
+139,
+143,
+515,
+646,
+993,
+3306,
+6001,
+8000
+],
+"lets-test.hi-tech.org": [
+7,
+13,
+21,
+81,
+88,
+110,
+111,
+113,
+444,
+465,
+514,
+544,
+646,
+993,
+1027,
+2000,
+2001,
+2121,
+3000,
+5666,
+"... еще 5 записей; полный список есть в report.json или отдельном артефакте"
+],
+"mail-hti.hi-tech.org": [
+25,
+26,
+144,
+444,
+465,
+548,
+587,
+2000,
+2049,
+3389,
+4899,
+6001,
+8080,
+10000,
+49153,
+49154,
+49156
+],
+"mail.hi-tech.org": [
+25,
+144,
+548,
+1110,
+2049,
+3986,
+4899,
+6001,
+8443,
+9100,
+32768
+],
+"mail01.hi-tech.org": [
+25,
+144,
+548,
+1110,
+2049,
+3986,
+4899,
+6001,
+8443,
+9100,
+32768
+],
+"mx1.hi-tech.org": [
+25,
+26,
+144,
+444,
+465,
+548,
+587,
+2000,
+2049,
+3389,
+4899,
+6001,
+8080,
+10000,
+49153,
+49154,
+49156
+],
+"ns1.hi-tech.org": [
+7,
+13,
+21,
+139,
+465,
+554,
+646,
+993,
+2001,
+2717,
+8080,
+49152
+],
+"old.hi-tech.org": [
+21,
+135,
+444,
+445,
+513,
+990,
+995,
+1720,
+1900,
+4899,
+8008,
+49156
+],
+"sip.hi-tech.org": [
+53,
+88,
+111,
+119,
+135,
+514,
+544,
+554,
+990,
+995,
+1026,
+1027,
+2717,
+5060,
+5800,
+6001,
+9100,
+49155
+],
+"status.hi-tech.org": [
+81,
+119,
+199,
+427,
+444,
+465,
+513,
+995,
+1025,
+1110,
+2000,
+2049,
+2717,
+3306,
+3389,
+3986,
+5666,
+5900,
+6001,
+8000,
+"... еще 4 записей; полный список есть в report.json или отдельном артефакте"
+],
+"test2023.hi-tech.org": [
+21,
+135,
+544,
+1900
+],
+"turn.hi-tech.org": [
+9,
+88,
+873,
+1433,
+3306,
+3389,
+3986,
+6001,
+6646,
+32768
+],
+"vpn2.hi-tech.org": [
+25,
+79,
+179,
+389,
+515,
+554,
+1025,
+1755,
+1900,
+2049,
+5101,
+5190,
+5631,
+5800,
+8009,
+8888,
+10000,
+49152,
+49153
+],
+"www.hi-tech.org": [
+21,
+135,
+544,
+1900
+]
+},
+"port_banner_checks": {
+"hi-tech.org": {
+"21": {
+"banner_found": true,
+"status": "banner_after_probe",
+"banner": "220 Welcome to LTD BeGet FTP Server 'split'\\r\\n"
+},
+"544": {
+"banner_found": false,
+"status": "connect_failed",
+"error": "timed out"
+},
+"135": {
+"banner_found": false,
+"status": "no_banner"
+},
+"1900": {
+"banner_found": false,
+"status": "connect_failed",
+"error": "timed out"
+}
+},
+"1c-server.hi-tech.org": {
+"389": {
+"banner_found": false,
+"status": "no_banner"
+},
+"1027": {
+"banner_found": false,
+"status": "no_banner"
+},
+"110": {
+"banner_found": false,
+"status": "no_banner"
+},
+"8081": {
+"banner_found": false,
+"status": "no_banner"
+},
+"3986": {
+"banner_found": false,
+"status": "no_banner"
+},
+"8888": {
+"banner_found": false,
+"status": "no_banner"
+},
+"49157": {
+"banner_found": false,
+"status": "no_banner"
+}
+},
+"7twenty.hi-tech.org": {
+"389": {
+"banner_found": false,
+"status": "no_banner"
+},
+"1027": {
+"banner_found": false,
+"status": "no_banner"
+},
+"110": {
+"banner_found": false,
+"status": "no_banner"
+},
+"8888": {
+"banner_found": false,
+"status": "no_banner"
+},
+"49157": {
+"banner_found": false,
+"status": "no_banner"
+},
+"8081": {
+"banner_found": false,
+"status": "no_banner"
+},
+"3986": {
+"banner_found": false,
+"status": "no_banner"
+}
+},
+"ns1.hi-tech.org": {
+"7": {
+"banner_found": false,
+"status": "connect_failed",
+"error": "timed out"
+},
+"13": {
+"banner_found": false,
+"status": "connect_failed",
+"error": "timed out"
+},
+"21": {
+"banner_found": false,
+"status": "connect_failed",
+"error": "timed out"
+},
+"139": {
+"banner_found": false,
+"status": "connect_failed",
+"error": "timed out"
+},
+"465": {
+"banner_found": false,
+"status": "connect_failed",
+"error": "timed out"
+},
+"554": {
+"banner_found": false,
+"status": "connect_failed",
+"error": "timed out"
+},
+"646": {
+"banner_found": false,
+"status": "connect_failed",
+"error": "timed out"
+},
+"2001": {
+"banner_found": false,
+"status": "connect_failed",
+"error": "timed out"
+},
+"2717": {
+"banner_found": false,
+"status": "connect_failed",
+"error": "timed out"
+},
+"8080": {
+"banner_found": false,
+"status": "connect_failed",
+"error": "timed out"
+},
+"993": {
+"banner_found": false,
+"status": "no_banner"
+},
+"49152": {
+"banner_found": false,
+"status": "no_banner"
+}
+},
+"iva.portal.hi-tech.org": {
+"13": {
+"banner_found": false,
+"status": "connect_failed",
+"error": "timed out"
+},
+"53": {
+"banner_found": false,
+"status": "connect_failed",
+"error": "timed out"
+},
+"389": {
+"banner_found": false,
+"status": "connect_failed",
+"error": "timed out"
+},
+"1027": {
+"banner_found": false,
+"status": "connect_failed",
+"error": "timed out"
+},
+"3986": {
+"banner_found": false,
+"status": "connect_failed",
+"error": "timed out"
+},
+"8009": {
+"banner_found": false,
+"status": "connect_failed",
+"error": "timed out"
+},
+"110": {
+"banner_found": false,
+"status": "no_banner"
+},
+"543": {
+"banner_found": false,
+"status": "no_banner"
+},
+"873": {
+"banner_found": false,
+"status": "no_banner"
+},
+"2049": {
+"banner_found": false,
+"status": "no_banner"
+},
+"2000": {
+"banner_found": false,
+"status": "no_banner"
+},
+"5101": {
+"banner_found": false,
+"status": "no_banner"
+},
+"7070": {
+"banner_found": false,
+"status": "no_banner"
+}
+},
+"test2023.hi-tech.org": {
+"21": {
+"banner_found": false,
+"status": "connect_failed",
+"error": "timed out"
+},
+"544": {
+"banner_found": false,
+"status": "connect_failed",
+"error": "timed out"
+},
+"135": {
+"banner_found": false,
+"status": "no_banner"
+},
+"1900": {
+"banner_found": false,
+"status": "no_banner"
+}
+},
+"www.hi-tech.org": {
+"21": {
+"banner_found": false,
+"status": "no_banner"
+},
+"135": {
+"banner_found": false,
+"status": "no_banner"
+},
+"1900": {
+"banner_found": false,
+"status": "no_banner"
+},
+"544": {
+"banner_found": false,
+"status": "no_banner"
+}
+}
+},
+"confirmed_ports": {
+"hi-tech.org": [
+21
+]
+},
+"confirmed_port_count": 1,
+"unconfirmed_port_count": 320,
+"open_ports_without_banners": {
+"1c-server.hi-tech.org": [
+110,
+389,
+1027,
+3986,
+8081,
+8888,
+49157
+],
+"7twenty.hi-tech.org": [
+110,
+389,
+1027,
+3986,
+8081,
+8888,
+49157
+],
+"hi-tech.org": [
+135,
+544,
+1900
+],
+"iva.portal.hi-tech.org": [
+13,
+53,
+110,
+389,
+543,
+873,
+1027,
+2000,
+2049,
+3986,
+5101,
+7070,
+8009
+],
+"ns1.hi-tech.org": [
+7,
+13,
+21,
+139,
+465,
+554,
+646,
+993,
+2001,
+2717,
+8080,
+49152
+],
+"test2023.hi-tech.org": [
+21,
+135,
+544,
+1900
+],
+"www.hi-tech.org": [
+21,
+135,
+544,
+1900
+],
+"aads.hi-tech.org": [
+53,
+88,
+111,
+119,
+135,
+514,
+544,
+554,
+990,
+995,
+1026,
+1027,
+2717,
+5060,
+5800,
+6001,
+9100,
+49155
+],
+"aawg.hi-tech.org": [
+53,
+88,
+111,
+119,
+135,
+514,
+544,
+554,
+990,
+995,
+1026,
+1027,
+2717,
+5060,
+5800,
+6001,
+9100,
+49155
+],
+"autodiscover.hi-tech.org": [
+25,
+26,
+144,
+444,
+465,
+548,
+587,
+2000,
+2049,
+3389,
+4899,
+6001,
+8080,
+10000,
+49153,
+49154,
+49156
+],
+"breeze-sm100.hi-tech.org": [
+53,
+88,
+111,
+119,
+135,
+514,
+544,
+554,
+990,
+995,
+1026,
+1027,
+2717,
+5060,
+5800,
+6001,
+9100,
+49155
+],
+"cloud.hi-tech.org": [
+110,
+389,
+1027,
+3986,
+8081,
+8888,
+49157
+],
+"hti-vpn1.hi-tech.org": [
+13,
+23,
+79,
+143,
+443,
+515,
+587,
+1723,
+1900,
+3000,
+4899,
+5051,
+5432,
+5800,
+7070,
+49153,
+49155,
+49157
+],
+"ivcs.hi-tech.org": [
+21,
+26,
+139,
+143,
+515,
+646,
+993,
+3306,
+6001,
+8000
+],
+"lets-test.hi-tech.org": [
+7,
+13,
+21,
+81,
+88,
+110,
+111,
+113,
+444,
+465,
+514,
+544,
+646,
+993,
+1027,
+2000,
+2001,
+2121,
+3000,
+5666,
+"... еще 5 записей; полный список есть в report.json или отдельном артефакте"
+],
+"mail-hti.hi-tech.org": [
+25,
+26,
+144,
+444,
+465,
+548,
+587,
+2000,
+2049,
+3389,
+4899,
+6001,
+8080,
+10000,
+49153,
+49154,
+49156
+],
+"mail.hi-tech.org": [
+25,
+144,
+548,
+1110,
+2049,
+3986,
+4899,
+6001,
+8443,
+9100,
+32768
+],
+"mail01.hi-tech.org": [
+25,
+144,
+548,
+1110,
+2049,
+3986,
+4899,
+6001,
+8443,
+9100,
+32768
+],
+"mx1.hi-tech.org": [
+25,
+26,
+144,
+444,
+465,
+548,
+587,
+2000,
+2049,
+3389,
+4899,
+6001,
+8080,
+10000,
+49153,
+49154,
+49156
+],
+"old.hi-tech.org": [
+21,
+135,
+444,
+445,
+513,
+990,
+995,
+1720,
+1900,
+4899,
+8008,
+49156
+],
+"sip.hi-tech.org": [
+53,
+88,
+111,
+119,
+135,
+514,
+544,
+554,
+990,
+995,
+1026,
+1027,
+2717,
+5060,
+5800,
+6001,
+9100,
+49155
+],
+"status.hi-tech.org": [
+81,
+119,
+199,
+427,
+444,
+465,
+513,
+995,
+1025,
+1110,
+2000,
+2049,
+2717,
+3306,
+3389,
+3986,
+5666,
+5900,
+6001,
+8000,
+"... еще 4 записей; полный список есть в report.json или отдельном артефакте"
+],
+"turn.hi-tech.org": [
+9,
+88,
+873,
+1433,
+3306,
+3389,
+3986,
+6001,
+6646,
+32768
+],
+"vpn2.hi-tech.org": [
+25,
+79,
+179,
+389,
+515,
+554,
+1025,
+1755,
+1900,
+2049,
+5101,
+5190,
+5631,
+5800,
+8009,
+8888,
+10000,
+49152,
+49153
+]
+},
+"naabu_noisy_hosts": {
+"aads.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+53,
+88,
+111,
+119,
+135,
+514,
+544,
+554,
+990,
+995,
+1026,
+1027,
+2717,
+5060,
+5800,
+6001,
+9100,
+49155
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"aawg.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+53,
+88,
+111,
+119,
+135,
+514,
+544,
+554,
+990,
+995,
+1026,
+1027,
+2717,
+5060,
+5800,
+6001,
+9100,
+49155
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"autodiscover.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+25,
+26,
+144,
+444,
+465,
+548,
+587,
+2000,
+2049,
+3389,
+4899,
+6001,
+8080,
+10000,
+49153,
+49154,
+49156
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"breeze-sm100.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+53,
+88,
+111,
+119,
+135,
+514,
+544,
+554,
+990,
+995,
+1026,
+1027,
+2717,
+5060,
+5800,
+6001,
+9100,
+49155
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"cloud.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+110,
+389,
+1027,
+3986,
+8081,
+8888,
+49157
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"hti-vpn1.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+13,
+23,
+79,
+143,
+443,
+515,
+587,
+1723,
+1900,
+3000,
+4899,
+5051,
+5432,
+5800,
+7070,
+49153,
+49155,
+49157
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+37,
+81,
+82
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+9,
+37,
+81,
+82
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"ivcs.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+21,
+26,
+139,
+143,
+515,
+646,
+993,
+3306,
+6001,
+8000
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"lets-test.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+7,
+13,
+21,
+81,
+88,
+110,
+111,
+113,
+444,
+465,
+514,
+544,
+646,
+993,
+1027,
+2000,
+2001,
+2121,
+3000,
+5666,
+"... еще 5 записей; полный список есть в report.json или отдельном артефакте"
+],
+"control_ports_tested": [
+1,
+2,
+3,
+9,
+37,
+79,
+82,
+999
+],
+"control_ports_open": [
+1,
+2,
+3,
+9,
+37,
+79,
+82,
+999
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"mail-hti.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+25,
+26,
+144,
+444,
+465,
+548,
+587,
+2000,
+2049,
+3389,
+4899,
+6001,
+8080,
+10000,
+49153,
+49154,
+49156
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"mail.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+25,
+144,
+548,
+1110,
+2049,
+3986,
+4899,
+6001,
+8443,
+9100,
+32768
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"mail01.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+25,
+144,
+548,
+1110,
+2049,
+3986,
+4899,
+6001,
+8443,
+9100,
+32768
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"mx1.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+25,
+26,
+144,
+444,
+465,
+548,
+587,
+2000,
+2049,
+3389,
+4899,
+6001,
+8080,
+10000,
+49153,
+49154,
+49156
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+9,
+13,
+79
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"old.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+21,
+135,
+444,
+445,
+513,
+990,
+995,
+1720,
+1900,
+4899,
+8008,
+49156
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"control_ports_open": [
+3,
+7,
+9,
+13,
+37,
+79
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"sip.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+53,
+88,
+111,
+119,
+135,
+514,
+544,
+554,
+990,
+995,
+1026,
+1027,
+2717,
+5060,
+5800,
+6001,
+9100,
+49155
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"status.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+81,
+119,
+199,
+427,
+444,
+465,
+513,
+995,
+1025,
+1110,
+2000,
+2049,
+2717,
+3306,
+3389,
+3986,
+5666,
+5900,
+6001,
+8000,
+"... еще 4 записей; полный список есть в report.json или отдельном артефакте"
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+79
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"turn.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+9,
+88,
+873,
+1433,
+3306,
+3389,
+3986,
+6001,
+6646,
+32768
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+13,
+37,
+79,
+81
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+13,
+37,
+79,
+81
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+},
+"vpn2.hi-tech.org": {
+"reason": "control_ports_also_open",
+"open_ports": [
+25,
+79,
+179,
+389,
+515,
+554,
+1025,
+1755,
+1900,
+2049,
+5101,
+5190,
+5631,
+5800,
+8009,
+8888,
+10000,
+49152,
+49153
+],
+"control_ports_tested": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+81
+],
+"control_ports_open": [
+1,
+2,
+3,
+7,
+9,
+13,
+37,
+81
+],
+"note": "Контрольные случайные порты тоже принимают TCP-connect; это похоже на accept-all/tarpit/firewall, а не на подтвержденные сервисы."
+}
+},
+"katana_output": {
+"path": "reports/hi-tech-pentest/katana-output.jsonl",
+"exists": true,
+"bytes": 23975606
+},
+"katana_error_log": {
+"path": "reports/hi-tech-pentest/katana-errors.log",
+"exists": true,
+"bytes": 8981
+},
+"katana_endpoints": 301,
+"nuclei_output": {
+"path": "reports/hi-tech-pentest/nuclei-output.jsonl",
+"exists": true,
+"bytes": 0
+},
+"nuclei_error_log": {
+"path": "reports/hi-tech-pentest/nuclei-errors.log",
+"exists": true,
+"bytes": 0
+},
+"nuclei_trace_log": {
+"path": "reports/hi-tech-pentest/nuclei-trace.log",
+"exists": true,
+"bytes": 0
+},
+"nuclei_stdout_log": {
+"path": "reports/hi-tech-pentest/nuclei-stdout.log",
+"exists": true,
+"bytes": 0
+},
+"nuclei_stderr_log": {
+"path": "reports/hi-tech-pentest/nuclei-stderr.log",
+"exists": true,
+"bytes": 274
+},
+"nuclei_stderr_tail": [
+"{\"duration\":\"0:00:00\",\"errors\":\"0\",\"hosts\":\"n/a\",\"matched\":\"0\",\"percent\":\"9223372036854775808\",\"requests\":\"0\",\"rps\":\"9223372036854775808\",\"startedAt\":\"0001-01-01T00:00:00Z\",\"templates\":\"n/a\",\"total\":\"0\"}",
+"[\u001b[1;31mFTL\u001b[0m] Could not run nuclei: no templates provided for scan"
+],
+"nuclei_error_tail": [],
+"nuclei_trace_tail": [],
+"nuclei_findings": 0,
+"nuclei_batches": {
+"planned": 2,
+"completed": 0,
+"failed": 2,
+"skipped": 0,
+"batches": [
+{
+"batch": "critical-high-1",
+"severity": "critical,high",
+"targets": 10,
+"status": "failed",
+"exit_code": 1,
+"findings": 0,
+"output": "reports/hi-tech-pentest/nuclei-output-critical-high-1.jsonl"
+},
+{
+"batch": "medium-low-1",
+"severity": "medium,low",
+"targets": 10,
+"status": "failed",
+"exit_code": 1,
+"findings": 0,
+"output": "reports/hi-tech-pentest/nuclei-output-medium-low-1.jsonl"
+}
+]
+}
+}
+document_links
+{
+"document_link_input": {
+"path": "reports/hi-tech-pentest/document-link-input.txt",
+"bytes": 6576
+},
+"document_link_input_count": 307,
+"document_link_candidates": {
+"path": "reports/hi-tech-pentest/document-link-candidates.jsonl",
+"bytes": 858
+},
+"document_link_candidate_count": 6,
+"public_documents": {
+"total": 3,
+"by_type": {
+"pdf": 3
+},
+"by_host": {
+"hi-tech.org": 3
+},
+"keyword_matches": 0,
+"sample": [
+{
+"url": "https://hi-tech.org/upload/hitech-2022.pdf",
+"extension": "pdf",
+"host": "hi-tech.org",
+"keyword_match": "no",
+"status_code": "206",
+"content_type": "application/pdf",
+"verified": "yes"
+},
+{
+"url": "https://hi-tech.org/upload/iblock/173/1gpegtbur0ru3xorl1w7up6389aekqx6.pdf",
+"extension": "pdf",
+"host": "hi-tech.org",
+"keyword_match": "no",
+"status_code": "206",
+"content_type": "application/pdf",
+"verified": "yes"
+},
+{
+"url": "https://hi-tech.org/upload/iblock/c0d/gp418go9vuxr18y2da8d9q8y5olgal0y.pdf",
+"extension": "pdf",
+"host": "hi-tech.org",
+"keyword_match": "no",
+"status_code": "206",
+"content_type": "application/pdf",
+"verified": "yes"
+}
+],
+"documents": [
+{
+"url": "https://hi-tech.org/upload/hitech-2022.pdf",
+"extension": "pdf",
+"host": "hi-tech.org",
+"keyword_match": "no",
+"status_code": "206",
+"content_type": "application/pdf",
+"verified": "yes"
+},
+{
+"url": "https://hi-tech.org/upload/iblock/173/1gpegtbur0ru3xorl1w7up6389aekqx6.pdf",
+"extension": "pdf",
+"host": "hi-tech.org",
+"keyword_match": "no",
+"status_code": "206",
+"content_type": "application/pdf",
+"verified": "yes"
+},
+{
+"url": "https://hi-tech.org/upload/iblock/c0d/gp418go9vuxr18y2da8d9q8y5olgal0y.pdf",
+"extension": "pdf",
+"host": "hi-tech.org",
+"keyword_match": "no",
+"status_code": "206",
+"content_type": "application/pdf",
+"verified": "yes"
+}
+],
+"full_list": {
+"path": "reports/hi-tech-pentest/document-link-public-documents.jsonl",
+"exists": true,
+"bytes": 652
+},
+"checked_total": 6,
+"rejected_total": 3,
+"source": "fresh_document_link_check"
+}
+}
+exposure_paths
+{
+"filtered_generic_responses": {
+"autodiscover.hi-tech.org": [
+"/backup.sql",
+"/backup.zip",
+"/config.json",
+"/config.php",
+"/db.sql",
+"/dump.sql",
+"/phpinfo.php"
+],
+"mail-hti.hi-tech.org": [
+"/backup.sql",
+"/backup.zip",
+"/config.json",
+"/config.php",
+"/db.sql",
+"/dump.sql",
+"/phpinfo.php"
+],
+"mail.hi-tech.org": [
+"/.env",
+"/backup.sql",
+"/backup.zip",
+"/config.json",
+"/config.php",
+"/db.sql",
+"/dump.sql",
+"/phpinfo.php",
+"/server-status"
+],
+"mail01.hi-tech.org": [
+"/.env",
+"/backup.sql",
+"/backup.zip",
+"/config.json",
+"/config.php",
+"/db.sql",
+"/dump.sql",
+"/phpinfo.php",
+"/server-status"
+],
+"mx1.hi-tech.org": [
+"/backup.sql",
+"/backup.zip",
+"/config.json",
+"/config.php",
+"/db.sql",
+"/dump.sql",
+"/phpinfo.php"
+],
+"test2023.hi-tech.org": [
+"/.well-known/security.txt",
+"/backup.zip",
+"/config.json",
+"/config.php",
+"/phpinfo.php"
+]
+},
+"checked_urls": 814,
+"confirmed": 0,
+"rejected": 814,
+"rejected_reasons": {
+"status": 743,
+"redirected": 43,
+"content_mismatch": 23,
+"baseline_match": 5
+},
+"catch_all_origins": [
+"https://test2023.hi-tech.org"
+]
+}
+heavy_workflows
+{
+"skipped": "требуется --heavy-tools"
+}
+Технические ошибки сбора
+Это не найденные уязвимости, а технические проблемы во время сбора данных: таймауты, недоступные внешние сервисы или отсутствующие инструменты. Если здесь есть записи, часть отчета могла получиться неполной.
+ct_subdomains: модуль завершился технической ошибкой
+Что это
+Это ошибка процесса сбора данных, а не подтвержденная уязвимость.
+Влияние на отчет
+Часть данных могла не попасть в отчет.
+Что делать
+Посмотреть технические детали и повторить запуск при необходимости.
+Технические детали
+все CT-источники завершились ошибкой: crt.sh: The read operation timed out; certspotter: <urlopen error _ssl.c:993: The handshake operation timed out>
+projectdiscovery: проверка шаблонов не успела завершиться
+Что это
+Nuclei проверяет известные признаки уязвимостей по шаблонам. На этой цели процесс закончился по timeout.
+Влияние на отчет
+В этом запуске Nuclei не дал подтвержденных находок. Это не доказывает, что уязвимостей нет.
+Что делать
+Для уверенности перезапустить Nuclei с большим timeout, меньшим списком целей или отдельной ручной проверкой важных сервисов.
+Технические детали
+nuclei завершился ошибкой: {"duration":"0:00:00","errors":"0","hosts":"n/a","matched":"0","percent":"9223372036854775808","requests":"0","rps":"9223372036854775808","startedAt":"0001-01-01T00:00:00Z","templates":"n/a","total":"0"} | [[1;31mFTL[0m] Could not run nuclei: no templates provided for scan; частичных JSONL-находок нет; выполнено 0 из 2 батчей (по хостам и severity); stderr_log=reports/hi-tech-pentest/nuclei-stderr.log; error_log=reports/hi-tech-pentest/nuclei-errors.log
+amass: пассивный поиск поддоменов не дал результата за отведенное время
+Что это
+Amass ищет поддомены во внешних источниках. В этом запуске он не вернул полезный результат и вывел только служебный прогресс.
+Влияние на отчет
+Отчет все равно содержит поддомены из других источников, но данные Amass могли не дополнить инвентарь.
+Что делать
+Можно не считать это уязвимостью. При необходимости перезапустить Amass отдельно или увеличить timeout.

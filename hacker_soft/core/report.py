@@ -9,29 +9,28 @@ from pathlib import Path
 from typing import Iterable
 from urllib.parse import quote, unquote, urlparse, urlunparse
 
-from .models import Finding, ModuleResult, ScanContext, Severity
-
-
-SEVERITY_ORDER = {
-    Severity.CRITICAL: 0,
-    Severity.HIGH: 1,
-    Severity.MEDIUM: 2,
-    Severity.LOW: 3,
-    Severity.INFO: 4,
-}
+from .findings import (
+    collect_findings,
+    diagnostics,
+    inventory,
+    issues,
+    priority_findings,
+    risk_score,
+    severity_counter,
+)
+from .models import Finding, ModuleResult, ScanContext
 
 
 def flatten_findings(results: Iterable[ModuleResult]) -> list[Finding]:
-    findings: list[Finding] = []
-    for result in results:
-        findings.extend(result.findings)
-    return sorted(findings, key=lambda item: (SEVERITY_ORDER[item.severity], item.title))
+    return collect_findings(results)
 
 
 def finding_to_dict(finding: Finding) -> dict:
     data = asdict(finding)
     data["severity"] = finding.severity.value
     data["confidence"] = finding.confidence.value
+    data["category"] = finding.category.value
+    data["targets"] = finding.all_targets
     return data
 
 
@@ -39,9 +38,10 @@ def write_reports(context: ScanContext, results: list[ModuleResult]) -> dict[str
     out_dir = context.config.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
     findings = flatten_findings(results)
-    summary = Counter(f.severity.value for f in findings)
+    summary = severity_counter(issues(findings))
 
     payload = {
+        "schema_version": 2,
         "target": asdict(context.target),
         "started_at": context.started_at.isoformat(),
         "config": {
@@ -55,6 +55,13 @@ def write_reports(context: ScanContext, results: list[ModuleResult]) -> dict[str
             "max_hosts": context.config.max_hosts,
         },
         "summary": dict(summary),
+        "counts": {
+            "issues": len(issues(findings)),
+            "inventory": len(inventory(findings)),
+            "diagnostics": len(diagnostics(findings)),
+            "risk_score": risk_score(findings),
+        },
+        "findings": [finding_to_dict(finding) for finding in findings],
         "client_overview": build_client_overview(context, results, findings, summary),
         "assets": {
             "subdomains": sorted(context.subdomains),
@@ -107,29 +114,39 @@ def build_client_overview(
         level = "medium"
         title = "Критичных сигналов нет, но есть важные настройки"
         message = "Основные риски выглядят управляемыми, однако часть защитных настроек стоит довести до нормы."
-    elif summary.get("low", 0) or summary.get("info", 0):
+    elif summary.get("low", 0):
         level = "low"
         title = "Срочных проблем не видно, есть улучшения гигиены"
         message = "Сканер не нашел критичных сигналов, но показал места, где можно уменьшить поверхность атаки."
     else:
         level = "clean"
-        title = "Явных находок нет"
-        message = "Автоматическая проверка не увидела заметных проблем на доступной извне поверхности."
+        title = "Проблем не найдено"
+        message = (
+            "Автоматическая проверка не увидела проблем на доступной извне поверхности. "
+            "Собранный инвентарь и диагностику сбора смотри ниже."
+        )
 
     priority_items = []
-    for finding in findings[:3]:
-        priority_items.append(
-            f"{severity_label(finding.severity.value)}: {finding.title} ({finding.target})"
-        )
+    for finding in priority_findings(findings):
+        scope = describe_scope(finding)
+        priority_items.append(f"{severity_label(finding.severity.value)}: {finding.title} ({scope})")
     if not priority_items:
-        priority_items.append("Критичных или приоритетных находок в текущем скане нет.")
+        priority_items.append("Проблем, требующих исправления, в текущем скане нет.")
 
     return {
         "level": level,
         "title": title,
         "message": message,
         "priority_items": priority_items,
+        "risk_score": risk_score(findings),
     }
+
+
+def describe_scope(finding: Finding) -> str:
+    targets = finding.all_targets
+    if len(targets) == 1:
+        return targets[0]
+    return f"{len(targets)} целей, например {targets[0]}"
 
 
 def render_markdown(
@@ -139,6 +156,9 @@ def render_markdown(
     summary: Counter,
 ) -> str:
     overview = build_client_overview(context, results, findings, summary)
+    issue_list = issues(findings)
+    inventory_list = inventory(findings)
+    diagnostic_list = diagnostics(findings)
     document_summary = get_public_documents_summary(results, context.config.out_dir / "public-documents-merged.jsonl")
     lines = [
         f"# Отчет по внешней безопасности: {context.target.domain}",
@@ -149,11 +169,13 @@ def render_markdown(
         "",
         "### Что нашли",
         "",
-        f"- Всего находок: `{len(findings)}`",
+        f"- Проблем к исправлению: `{len(issue_list)}`",
         f"- Критично: `{summary.get('critical', 0)}`",
         f"- Высоко: `{summary.get('high', 0)}`",
         f"- Средне: `{summary.get('medium', 0)}`",
-        f"- Низко/инфо: `{summary.get('low', 0) + summary.get('info', 0)}`",
+        f"- Низко: `{summary.get('low', 0)}`",
+        f"- Инвентарь и контекст (не проблемы): `{len(inventory_list)}`",
+        f"- Диагностика сбора: `{len(diagnostic_list)}`",
         "",
         "### Что проверено",
         "",
@@ -187,11 +209,12 @@ def render_markdown(
             "",
         ]
     )
+    lines.append(f"- Оценка риска: `{overview.get('risk_score', 0)}/100`")
     if summary:
-        for severity in ["critical", "high", "medium", "low", "info"]:
+        for severity in ["critical", "high", "medium", "low"]:
             lines.append(f"- {severity_label(severity)}: `{summary.get(severity, 0)}`")
     else:
-        lines.append("- Находок нет.")
+        lines.append("- Проблем не найдено.")
     if document_summary.get("total"):
         lines.extend(["", "## Публичные документы", ""])
         lines.append(f"- Всего: `{document_summary.get('total', 0)}`")
@@ -244,30 +267,38 @@ def render_markdown(
                 lines.append(f"- Источники с ограничениями: `{source_text}`")
         else:
             lines.append("- Статус: технических ограничений автодоркинга не зафиксировано")
-    lines.extend(["", "## Приоритетные находки", ""])
+        unverified = collect_unverified_dorks(dork_result)
+        if unverified:
+            lines.extend(
+                [
+                    "",
+                    f"### Непроверенные дорки ({len(unverified)})",
+                    "",
+                    "Эти запросы не дошли до поисковика из-за капчи, блокировки или таймаута. "
+                    "Результат по ним неизвестен, проверить нужно вручную.",
+                    "",
+                ]
+            )
+            for item in unverified:
+                lines.append(f"- `{item.get('query', '')}` - {item.get('google', '')}")
 
-    for finding in findings:
-        guide = finding_guide(finding)
-        lines.extend(
-            [
-                f"### [{finding.severity.value.upper()}] {finding.title}",
-                "",
-                f"- Модуль: `{finding.module}`",
-                f"- Цель: `{finding.target}`",
-                f"- Уверенность: `{finding.confidence.value}`",
-            ]
-        )
-        lines.extend(["", f"Что это: {finding.explanation or guide['explanation']}"])
-        lines.extend(["", f"Чем грозит: {finding.impact or guide['impact']}"])
-        if finding.evidence:
-            evidence = json.dumps(finding.evidence, ensure_ascii=False, indent=2)
-            lines.extend(["- Доказательства:", "", "```json", evidence, "```"])
-        lines.extend(["", f"Что сделать: {finding.fix or finding.recommendation or guide['fix']}"])
-        if finding.references:
-            lines.extend(["", "Ссылки:"])
-            for ref in finding.references:
-                lines.append(f"- {ref}")
+    lines.extend(["", "## Проблемы к исправлению", ""])
+    if not issue_list:
+        lines.append("Проблем не найдено.")
         lines.append("")
+    for finding in issue_list:
+        append_finding_lines(lines, finding)
+
+    if inventory_list:
+        lines.extend(["", "## Инвентарь и контекст", "", "Это не проблемы, а собранные факты о внешней поверхности.", ""])
+        for finding in inventory_list:
+            lines.append(f"- {finding.title}: `{describe_scope(finding)}`")
+
+    if diagnostic_list:
+        lines.extend(["", "## Диагностика сбора", "", "Как прошел сам скан и что стоит перепроверить руками.", ""])
+        for finding in diagnostic_list:
+            lines.append(f"- {finding.title}: `{describe_scope(finding)}`")
+    lines.append("")
 
     lines.extend(["## Ошибки модулей", ""])
     any_errors = False
@@ -283,6 +314,43 @@ def render_markdown(
     return "\n".join(lines).rstrip() + "\n"
 
 
+def append_finding_lines(lines: list[str], finding: Finding) -> None:
+    guide = finding_guide(finding)
+    lines.extend(
+        [
+            f"### [{finding.severity.value.upper()}] {finding.title}",
+            "",
+            f"- Модуль: `{finding.module}`",
+            f"- Затронуто: `{describe_scope(finding)}`",
+            f"- Уверенность: `{finding.confidence.value}`",
+        ]
+    )
+    if len(finding.all_targets) > 1:
+        lines.extend(["", "Цели:"])
+        for target in finding.all_targets[:50]:
+            lines.append(f"- `{target}`")
+        if len(finding.all_targets) > 50:
+            lines.append(f"- ... еще {len(finding.all_targets) - 50}")
+    lines.extend(["", f"Что это: {finding.explanation or guide['explanation']}"])
+    lines.extend(["", f"Чем грозит: {finding.impact or guide['impact']}"])
+    if finding.evidence:
+        evidence = json.dumps(finding.evidence, ensure_ascii=False, indent=2)
+        lines.extend(["- Доказательства:", "", "```json", evidence, "```"])
+    lines.extend(["", f"Что сделать: {finding.fix or finding.recommendation or guide['fix']}"])
+    if finding.references:
+        lines.extend(["", "Ссылки:"])
+        for ref in finding.references:
+            lines.append(f"- {ref}")
+    lines.append("")
+
+
+def collect_unverified_dorks(result: ModuleResult) -> list[dict]:
+    items = result.artifacts.get("unverified_dorks") if result.artifacts else None
+    if not isinstance(items, list):
+        return []
+    return [item for item in items if isinstance(item, dict)]
+
+
 def render_html(
     context: ScanContext,
     results: list[ModuleResult],
@@ -290,10 +358,18 @@ def render_html(
     summary: Counter,
 ) -> str:
     overview = build_client_overview(context, results, findings, summary)
+    issue_list = issues(findings)
+    inventory_list = inventory(findings)
+    diagnostic_list = diagnostics(findings)
     priority_items_html = "\n".join(f"<li>{escape(item)}</li>" for item in overview["priority_items"])
-    cards = "\n".join(render_finding_card(finding) for finding in findings)
+    cards = "\n".join(render_finding_card(finding) for finding in issue_list)
     if not cards:
-        cards = '<section class="empty">Находок нет. Это не гарантия отсутствия проблем, но явных сигналов модульный скан не увидел.</section>'
+        cards = (
+            '<section class="empty">Проблем, требующих исправления, не найдено. Это не гарантия отсутствия '
+            'проблем: смотри разделы «Инвентарь и контекст» и «Диагностика сбора», чтобы понять, что именно проверено.</section>'
+        )
+    inventory_html = render_context_cards(inventory_list, "Собранные факты о внешней поверхности отсутствуют.")
+    diagnostics_html = render_context_cards(diagnostic_list, "Диагностических записей нет.")
 
     errors_html = render_errors_html(results)
     has_errors = has_non_dork_errors(results)
@@ -316,7 +392,7 @@ def render_html(
     subdomain_panel = render_data_panel(f"Поддомены ({len(subdomains)})", subdomain_html, len(subdomains))
     live_panel = render_data_panel(f"Живые HTTP(S)-сервисы ({len(live_hosts)})", live_html, len(live_hosts))
     ips_panel = render_data_panel(f"IP-адреса ({len(ips)})", ips_html, len(ips))
-    ports_panel = render_data_panel("Открытые порты", ports_html, len(context.open_ports))
+    ports_panel = render_data_panel("Подтвержденные открытые порты", ports_html, len(context.open_ports))
     endpoints_panel = render_data_panel(f"Endpoints ({len(endpoints)})", endpoints_html, len(endpoints), wide=True)
     documents_html = render_documents_html(context, results)
     dork_html = render_dork_html(results)
@@ -506,7 +582,7 @@ def render_html(
         </div>
       </section>
       <section class="summary-blocks" aria-label="Что проверено">
-        <div class="summary-block"><b>{len(findings)}</b><span>Всего находок</span></div>
+        <div class="summary-block"><b>{len(issue_list)}</b><span>Проблем к исправлению</span></div>
         <div class="summary-block"><b>{len(context.subdomains)}</b><span>Поддомены</span></div>
         <div class="summary-block"><b>{len(context.live_hosts)}</b><span>Живые сервисы</span></div>
         <div class="summary-block"><b>{len(context.endpoints)}</b><span>Endpoints</span></div>
@@ -516,20 +592,27 @@ def render_html(
         <div class="stat"><b>{summary.get("high", 0)}</b><span>Высоко</span></div>
         <div class="stat"><b>{summary.get("medium", 0)}</b><span>Средне</span></div>
         <div class="stat"><b>{summary.get("low", 0)}</b><span>Низко</span></div>
-        <div class="stat"><b>{summary.get("info", 0)}</b><span>Инфо</span></div>
+        <div class="stat"><b>{overview.get("risk_score", 0)}</b><span>Риск из 100</span></div>
       </section>
     </header>
 
     <section class="intro">
       <p><b>Как читать отчет.</b> Это автоматическая проверка того, что видно из интернета: домены, поддомены, сайты, порты, заголовки, DNS и типовые признаки уязвимостей.</p>
-      <p><b>Критично/Высоко</b> - самые важные сигналы. <b>Средне</b> - заметные настройки, пути или сервисы. <b>Низко/Инфо</b> - дополнительный контекст по внешней поверхности.</p>
+      <p><b>Проблемы к исправлению</b> - то, с чем нужно что-то делать. <b>Инвентарь и контекст</b> - собранные факты о поверхности без требования действий. <b>Диагностика сбора</b> - как прошел сам скан и что осталось непроверенным.</p>
+      <p><b>Критично/Высоко</b> - самые важные сигналы. <b>Средне</b> - заметные настройки, пути или сервисы. <b>Низко</b> - гигиена.</p>
       <p>Автосканер может ошибаться, поэтому важные находки требуют ручного подтверждения.</p>
     </section>
 
     {documents_html}
 
-    <h2>Находки</h2>
+    <h2>Проблемы к исправлению ({len(issue_list)})</h2>
     <section class="cards">{cards}</section>
+
+    <h2>Инвентарь и контекст ({len(inventory_list)})</h2>
+    <section class="panel"><p class="muted">Это не проблемы, а факты о внешней поверхности, которые помогают понять картину.</p>{inventory_html}</section>
+
+    <h2>Диагностика сбора ({len(diagnostic_list)})</h2>
+    <section class="panel"><p class="muted">Как прошел сам скан: что было ограничено внешними сервисами и что стоит перепроверить руками.</p>{diagnostics_html}</section>
 
     <h2>Активы</h2>
     <section class="columns">
@@ -551,6 +634,71 @@ def render_html(
 </body>
 </html>
 """
+
+
+def render_context_cards(findings: list[Finding], empty_note: str) -> str:
+    if not findings:
+        return f'<p class="muted">{escape(empty_note)}</p>'
+    items = []
+    for finding in findings:
+        guide = finding_guide(finding)
+        details = ""
+        if finding.evidence:
+            details = render_collapsible_json("Данные", finding.evidence)
+        targets_html = ""
+        if len(finding.all_targets) > 1:
+            shown = "".join(f"<li>{escape(target)}</li>" for target in finding.all_targets[:50])
+            more = (
+                f'<p class="muted">... еще {len(finding.all_targets) - 50}</p>'
+                if len(finding.all_targets) > 50
+                else ""
+            )
+            targets_html = (
+                '<details class="collapsible">'
+                f'<summary>Цели ({len(finding.all_targets)})</summary>'
+                f'<div class="collapsible-body"><ul>{shown}</ul>{more}</div>'
+                '</details>'
+            )
+        items.append(
+            '<article class="error-item">'
+            f'<b>{escape(finding.title)}</b>'
+            f'<p><span class="label">Модуль</span><code>{escape(finding.module)}</code></p>'
+            f'<p><span class="label">Затронуто</span>{escape(describe_scope(finding))}</p>'
+            f'<p>{escape(finding.explanation or guide["explanation"])}</p>'
+            f'{targets_html}'
+            f'{details}'
+            '</article>'
+        )
+    return f'<div class="error-list">{"".join(items)}</div>'
+
+
+def render_unverified_dorks_html(result: ModuleResult) -> str:
+    unverified = collect_unverified_dorks(result)
+    if not unverified:
+        return ""
+    items = []
+    for item in unverified:
+        blocked = ", ".join(item.get("blocked_engines") or []) or "нет данных"
+        items.append(
+            '<article class="dork-item">'
+            f'<h3>{escape(str(item.get("title", "Dork")))}</h3>'
+            f'<pre><code>{escape(str(item.get("query", "")))}</code></pre>'
+            f'<p class="muted">Заблокировали или не ответили: {escape(blocked)}</p>'
+            '<div class="links">'
+            f'<a href="{escape(str(item.get("google", "#")))}">Google</a>'
+            f'<a href="{escape(str(item.get("bing", "#")))}">Bing</a>'
+            f'<a href="{escape(str(item.get("duckduckgo", "#")))}">DuckDuckGo</a>'
+            '</div>'
+            '</article>'
+        )
+    return f"""
+    <h2>Непроверенные дорки ({len(unverified)})</h2>
+    <section class="panel">
+      <p class="muted">Эти запросы не дошли до поисковика: капча, блокировка или таймаут. Результат по ним
+      неизвестен - это не значит, что там ничего нет. Открой ссылки вручную из обычного браузера.</p>
+      <div class="dork-list">{"".join(items)}</div>
+    </section>
+    """
 
 
 def get_public_documents_summary(results: list[ModuleResult], output_path: Path | None = None) -> dict:
@@ -884,11 +1032,13 @@ def render_dork_html(results: list[ModuleResult]) -> str:
     if auto_summary:
         checked_count = len(checked_titles)
         found_count = len(found_titles)
-        empty_count = max(0, checked_count - found_count)
+        unverified_count = sum(1 for item in auto_summary if item.get("status") == "unverified")
+        empty_count = max(0, checked_count - found_count - unverified_count)
         error_count = sum(1 for item in auto_summary if item.get("errors"))
         dork_note = (
             f"Автопроверка: проверено {checked_count}; с результатами {found_count}; "
-            f"пустые скрыты {empty_count}; с ошибками {error_count}."
+            f"пустые скрыты {empty_count}; не проверено из-за блокировок {unverified_count}; "
+            f"с ошибками {error_count}."
         )
     else:
         dork_note = "Полный список команд для ручной проверки в Google/Bing/DuckDuckGo."
@@ -922,6 +1072,8 @@ def render_dork_html(results: list[ModuleResult]) -> str:
 
     <h2>Автоматическая выдача поисковиков</h2>
     <section class="panel">{search_html}</section>
+
+    {render_unverified_dorks_html(dork_result)}
     """
 
 
@@ -1064,6 +1216,13 @@ def explain_technical_error(module: str, error: str) -> dict[str, str]:
             "action": "Проверить технические детали и при необходимости перезапустить сбор endpoints.",
         }
     if "nuclei" in text:
+        if "шаблон" in text or "no templates" in text:
+            return {
+                "title": "проверки уязвимостей не выполнялись: нет набора шаблонов",
+                "what": "Nuclei ищет известные уязвимости по базе шаблонов, а она не установлена на машине со сканером.",
+                "impact": "Блок проверок уязвимостей в этом отчете пустой. Отсутствие находок здесь ничего не доказывает.",
+                "action": "Установить шаблоны командой 'nuclei -update-templates' или пересобрать Docker-образ, затем повторить скан.",
+            }
         if "частичных jsonl-находок нет" in text:
             return {
                 "title": "проверка шаблонов не успела завершиться",
@@ -1197,6 +1356,19 @@ def render_finding_card(finding: Finding) -> str:
         links = "".join(f'<li><a href="{escape(ref)}">{escape(ref)}</a></li>' for ref in finding.references)
         refs = f"<p><b>Ссылки:</b></p><ul>{links}</ul>"
     severity = finding.severity.value
+    targets = finding.all_targets
+    if len(targets) == 1:
+        scope_html = f"<p><b>Цель:</b> <code>{escape(targets[0])}</code></p>"
+    else:
+        target_items = "".join(f"<li><code>{escape(target)}</code></li>" for target in targets[:100])
+        more = f'<p class="muted">... еще {len(targets) - 100}</p>' if len(targets) > 100 else ""
+        scope_html = (
+            f"<p><b>Затронуто целей:</b> {len(targets)}</p>"
+            '<details class="collapsible">'
+            f'<summary>Показать цели ({len(targets)})</summary>'
+            f'<div class="collapsible-body"><ul>{target_items}</ul>{more}</div>'
+            '</details>'
+        )
     return f"""
       <article class="card {escape(severity)}">
         <div class="meta">
@@ -1205,7 +1377,7 @@ def render_finding_card(finding: Finding) -> str:
           <span class="pill">Уверенность: {escape(confidence_label(finding.confidence.value))}</span>
         </div>
         <h3>{escape(finding.title)}</h3>
-        <p><b>Цель:</b> <code>{escape(finding.target)}</code></p>
+        {scope_html}
         <div class="explain">
           <p><span class="label">Что это</span>{escape(finding.explanation or guide["explanation"])}</p>
           <p><span class="label">Чем грозит</span>{escape(finding.impact or guide["impact"])}</p>

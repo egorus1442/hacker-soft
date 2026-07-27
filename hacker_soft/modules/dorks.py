@@ -6,7 +6,7 @@ import json
 import time
 import urllib.parse
 
-from hacker_soft.core.models import Confidence, Finding, ModuleResult, ScanContext, Severity
+from hacker_soft.core.models import Category, Confidence, Finding, ModuleResult, ScanContext, Severity
 from hacker_soft.core.module import ScannerModule
 from hacker_soft.core.net import http_get
 from hacker_soft.modules.projectdiscovery import (
@@ -129,6 +129,21 @@ class DorkBuilderModule(ScannerModule):
         indexed_documents, index_errors = search_indexed_documents(context, domain)
         if search_summary:
             result.artifacts["auto_dork_summary"] = search_summary
+            unverified = [item for item in search_summary if item.get("status") == "unverified"]
+            if unverified:
+                result.artifacts["unverified_dorks"] = [
+                    {
+                        "title": item["title"],
+                        "query": item["query"],
+                        "google": item["google"],
+                        "bing": item["bing"],
+                        "duckduckgo": item["duckduckgo"],
+                        "blocked_engines": sorted(set(item.get("blocked_engines") or [])),
+                        "skipped_engines": sorted(set(item.get("skipped_engines") or [])),
+                    }
+                    for item in unverified
+                ]
+                result.artifacts["unverified_dork_count"] = len(unverified)
         if search_results:
             result.artifacts["search_result_count"] = len(search_results)
             result.artifacts["search_results"] = search_results
@@ -137,7 +152,8 @@ class DorkBuilderModule(ScannerModule):
                 Finding(
                     module=self.name,
                     title="Поисковики вернули результаты по dorks",
-                    severity=Severity.LOW,
+                    severity=Severity.INFO,
+                    category=Category.INVENTORY,
                     confidence=Confidence.MEDIUM,
                     target=domain,
                     evidence={"count": len(search_results), "sample": search_results[:10]},
@@ -178,11 +194,13 @@ class DorkBuilderModule(ScannerModule):
                 module=self.name,
                 title="Нужна ручная проверка Google/Bing dorks",
                 severity=Severity.INFO,
+                category=Category.DIAGNOSTIC,
                 confidence=Confidence.HIGH,
                 target=domain,
                 evidence={
                     "dork_count": len(dorks),
                     "auto_search_enabled": context.config.auto_dork_search,
+                    "unverified_dork_count": result.artifacts.get("unverified_dork_count", 0),
                     "sample": dorks[:8],
                 },
                 recommendation="Проверь сгенерированные dorks и автоматическую выдачу на индексируемые секреты, документы, бэкапы, админки и утечки.",
@@ -216,6 +234,10 @@ class DorkBuilderModule(ScannerModule):
                 "duckduckgo": dork["duckduckgo"],
                 "result_count": 0,
                 "errors": [],
+                "answered_engines": [],
+                "blocked_engines": [],
+                "skipped_engines": [],
+                "status": "unverified",
             }
             for dork in dorks[:query_limit]
         }
@@ -225,6 +247,7 @@ class DorkBuilderModule(ScannerModule):
         for dork in dorks[:query_limit]:
             for engine in SEARCH_ENGINE_ORDER:
                 if engine in engine_disabled:
+                    summary_by_title[dork["title"]]["skipped_engines"].append(engine)
                     continue
                 engine_config = SEARCH_ENGINES[engine]
                 try:
@@ -237,6 +260,7 @@ class DorkBuilderModule(ScannerModule):
                     message = f"{engine}: dork '{dork['title']}' не выполнен: {error}"
                     errors.append(message)
                     summary["errors"].append(message)
+                    summary["blocked_engines"].append(engine)
                     engine_errors[engine] = engine_errors.get(engine, 0) + 1
                     if is_search_block_or_timeout(error) and engine_errors[engine] >= 3:
                         engine_disabled.add(engine)
@@ -247,6 +271,7 @@ class DorkBuilderModule(ScannerModule):
                         errors.append(stop_message)
                     continue
 
+                summary["answered_engines"].append(engine)
                 new_count = 0
                 for item in parsed_results:
                     normalized_url = normalize_result_url(item["url"])
@@ -269,7 +294,18 @@ class DorkBuilderModule(ScannerModule):
                     new_count += 1
                 summary["result_count"] = int(summary["result_count"]) + new_count
 
+        for summary in summary_by_title.values():
+            summary["status"] = dork_status(summary)
         return search_results, errors, list(summary_by_title.values())
+
+
+def dork_status(summary: dict[str, object]) -> str:
+    """Distinguish "checked and empty" from "never actually checked" because of antibot limits."""
+    if int(summary.get("result_count") or 0) > 0:
+        return "found"
+    if summary.get("answered_engines"):
+        return "empty"
+    return "unverified"
 
 
 def search_one_dork(

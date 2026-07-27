@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
 
-from hacker_soft.core.models import Confidence, Finding, ModuleResult, ScanContext, Severity
+from hacker_soft.core.models import Category, Confidence, Finding, ModuleResult, ScanContext, Severity
 from hacker_soft.core.module import ScannerModule
 from hacker_soft.core.net import USER_AGENT
 from hacker_soft.modules.projectdiscovery import (
@@ -69,6 +69,7 @@ class DocumentLinksModule(ScannerModule):
                 module=self.name,
                 title="Публичные документы проверены в рамках текущего отчета",
                 severity=Severity.INFO,
+                category=Category.INVENTORY,
                 confidence=Confidence.HIGH,
                 target=context.target.domain,
                 evidence={

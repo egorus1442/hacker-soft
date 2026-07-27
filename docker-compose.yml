@@ -8,6 +8,7 @@ services:
     volumes:
       - ./hacker_soft:/app/hacker_soft:ro
       - ./reports:/app/reports
+      - nuclei-templates:/opt/nuclei-templates
     restart: unless-stopped
 
   scan:
@@ -18,3 +19,7 @@ services:
     command: ["pentest", "example.com", "--out", "reports/docker-pentest"]
     volumes:
       - ./reports:/app/reports
+      - nuclei-templates:/opt/nuclei-templates
+
+volumes:
+  nuclei-templates:

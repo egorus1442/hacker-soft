@@ -1,8 +1,15 @@
 from __future__ import annotations
 
-from hacker_soft.core.models import Confidence, Finding, ModuleResult, ScanContext, Severity
+import re
+from pathlib import Path
+
+from hacker_soft.core.models import Category, Confidence, Finding, ModuleResult, ScanContext, Severity
 from hacker_soft.core.module import ScannerModule
 from hacker_soft.core.net import run_tool
+
+
+AMASS_BUDGET_MINUTES = 2
+PROGRESS_NOISE_RE = re.compile(r"\d+\s*/\s*\d+\s*\[[^\]]*\]\s*\d+(?:\.\d+)?%\s*\??\s*p/s")
 
 
 class AmassModule(ScannerModule):
@@ -15,30 +22,39 @@ class AmassModule(ScannerModule):
             result.artifacts["skipped"] = "требуется --with-tools"
             return result
 
+        output_file = context.config.out_dir / "amass-hosts.txt"
+        context.config.out_dir.mkdir(parents=True, exist_ok=True)
+        budget_minutes = AMASS_BUDGET_MINUTES
         args = [
             "amass",
             "enum",
             "-passive",
             "-nocolor",
+            "-silent",
             "-d",
             context.target.domain,
+            "-o",
+            str(output_file),
             "-timeout",
-            str(max(1, min(4, context.config.timeout_seconds // 2))),
+            str(budget_minutes),
         ]
-        timeout = max(90, min(240, context.config.timeout_seconds * 24))
+        timeout = budget_minutes * 60 + 30
         code, stdout, stderr = run_tool(args, timeout=timeout, logger=context.logger)
         if code == 127:
             result.errors.append("amass не найден")
             return result
-        if code != 0 and not stdout:
-            result.errors.append(f"amass завершился ошибкой: {stderr.strip()[:500]}")
-            return result
 
-        hosts = {
-            line.strip().lower().strip(".")
-            for line in stdout.splitlines()
-            if is_owned_host(line.strip(), context.target.domain)
+        hosts = collect_amass_hosts(stdout, output_file, context.target.domain)
+        result.artifacts["amass_output"] = {
+            "path": str(output_file),
+            "exists": output_file.exists(),
+            "bytes": output_file.stat().st_size if output_file.exists() else 0,
         }
+        if not hosts:
+            # Amass prints a progress bar into stderr, so an empty run must not look like a crash.
+            result.artifacts["amass_status"] = "failed" if code not in {0, 124} else "no_data"
+            result.artifacts["amass_stderr_sample"] = strip_progress_noise(stderr)[:300]
+            return result
         before = len(context.subdomains)
         context.subdomains.update(hosts)
         added = len(context.subdomains) - before
@@ -51,6 +67,7 @@ class AmassModule(ScannerModule):
                     module=self.name,
                     title="Amass нашел дополнительные поддомены",
                     severity=Severity.INFO,
+                    category=Category.INVENTORY,
                     confidence=Confidence.HIGH,
                     target=context.target.domain,
                     evidence={"added": added, "sample": sorted(hosts)[:25]},
@@ -61,6 +78,25 @@ class AmassModule(ScannerModule):
                 )
             )
         return result
+
+
+def collect_amass_hosts(stdout: str, output_file: Path, domain: str) -> set[str]:
+    text = stdout
+    if output_file.exists():
+        try:
+            text += "\n" + output_file.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            pass
+    hosts: set[str] = set()
+    for line in text.splitlines():
+        candidate = line.strip().split()[0] if line.strip() else ""
+        if is_owned_host(candidate, domain):
+            hosts.add(candidate.lower().strip("."))
+    return hosts
+
+
+def strip_progress_noise(value: str) -> str:
+    return PROGRESS_NOISE_RE.sub("", value or "").strip()
 
 
 def is_owned_host(host: str | None, domain: str) -> bool:

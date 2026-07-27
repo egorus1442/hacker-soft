@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from hacker_soft.core.models import Confidence, Finding, ModuleResult, ScanContext, Severity
+from hacker_soft.core.models import Category, Confidence, Finding, ModuleResult, ScanContext, Severity
 from hacker_soft.core.module import ScannerModule
 from hacker_soft.core.net import run_tool
 
@@ -53,6 +53,7 @@ class HeavyWorkflowModule(ScannerModule):
                 module=self.name,
                 title="reconFTW workflow завершен",
                 severity=Severity.INFO,
+                category=Category.DIAGNOSTIC,
                 confidence=Confidence.MEDIUM,
                 target=context.target.domain,
                 evidence={"output_dir": str(out_dir), "imported_hosts": len(imported)},
@@ -70,6 +71,7 @@ class HeavyWorkflowModule(ScannerModule):
                 module=self.name,
                 title="reNgine self-hosted endpoint настроен",
                 severity=Severity.INFO,
+                category=Category.DIAGNOSTIC,
                 confidence=Confidence.LOW,
                 target=rengine_url,
                 evidence={"rengine_url": rengine_url},

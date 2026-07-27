@@ -23,6 +23,14 @@ class Confidence(str, Enum):
     HIGH = "high"
 
 
+class Category(str, Enum):
+    """What a record actually is: a problem to fix, an inventory fact, or scanner status."""
+
+    ISSUE = "issue"
+    INVENTORY = "inventory"
+    DIAGNOSTIC = "diagnostic"
+
+
 @dataclass(frozen=True)
 class Target:
     raw: str
@@ -44,6 +52,12 @@ class Finding:
     impact: str = ""
     fix: str = ""
     references: list[str] = field(default_factory=list)
+    category: Category = Category.ISSUE
+    targets: list[str] = field(default_factory=list)
+
+    @property
+    def all_targets(self) -> list[str]:
+        return self.targets or [self.target]
 
 
 @dataclass

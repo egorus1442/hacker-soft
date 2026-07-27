@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from .core.findings import diagnostics, inventory, issues
 from .core.models import ScanConfig
 from .core.report import flatten_findings
 from .scanner import scan
@@ -84,7 +85,8 @@ def print_scan_result(target: str, config: ScanConfig, company: str | None = Non
     print(f"Поддомены: {len(context.subdomains)}")
     print(f"Живые HTTP(S): {len(context.live_hosts)}")
     print(f"Endpoints: {len(context.endpoints)}")
-    print(f"Находки: {len(findings)}")
+    print(f"Проблемы: {len(issues(findings))}")
+    print(f"Инвентарь и диагностика: {len(inventory(findings)) + len(diagnostics(findings))}")
     print(f"JSON: {paths['json']}")
     print(f"Markdown: {paths['markdown']}")
     print(f"HTML: {paths['html']}")

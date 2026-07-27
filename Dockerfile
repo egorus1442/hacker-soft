@@ -41,6 +41,14 @@ RUN set -eux; \
     katana -version; \
     nuclei -version
 
+FROM pd-tools AS pd-debug
+
+RUN set -eux; \
+    nuclei -update-templates -templates-directory /opt/nuclei-templates; \
+    template_count="$(find /opt/nuclei-templates -name '*.yaml' | wc -l)"; \
+    echo "nuclei templates: ${template_count}"; \
+    [ "${template_count}" -gt 100 ]
+
 ARG AMASS_VERSION=5.1.1
 
 RUN set -eux; \
@@ -75,6 +83,9 @@ COPY --from=pd-tools /usr/local/bin/naabu /usr/local/bin/naabu
 COPY --from=pd-tools /usr/local/bin/katana /usr/local/bin/katana
 COPY --from=pd-tools /usr/local/bin/nuclei /usr/local/bin/nuclei
 COPY --from=pd-tools /usr/local/bin/amass /usr/local/bin/amass
+COPY --from=pd-tools /opt/nuclei-templates /opt/nuclei-templates
+
+ENV HACKER_SOFT_NUCLEI_TEMPLATES=/opt/nuclei-templates
 
 COPY pyproject.toml README.md ./
 COPY hacker_soft ./hacker_soft

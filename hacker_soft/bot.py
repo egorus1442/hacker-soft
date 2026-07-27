@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .core.findings import diagnostics, inventory, issues
 from .core.models import ScanConfig
 from .core.report import flatten_findings
 from .scanner import scan
@@ -237,11 +238,13 @@ class HackerSoftBot:
             )
             context, results, paths = scan(domain, config, company=request.get("company"))
             findings = flatten_findings(results)
+            problems = issues(findings)
             elapsed = int(time.time() - started)
             caption = (
                 f"Готово: {context.target.domain}\n"
-                f"Находок: {len(findings)}\n"
-                f"Критично/высоко: {count_severity(findings, 'critical')}/{count_severity(findings, 'high')}\n"
+                f"Проблем к исправлению: {len(problems)}\n"
+                f"Критично/высоко: {count_severity(problems, 'critical')}/{count_severity(problems, 'high')}\n"
+                f"Инвентарь и диагностика: {len(inventory(findings)) + len(diagnostics(findings))}\n"
                 f"Время: {elapsed} сек."
             )
             self.client.send_chat_action(chat_id, "upload_document")

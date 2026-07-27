@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from hacker_soft.core.models import Confidence, Finding, ModuleResult, ScanContext, Severity
+from hacker_soft.core.models import Category, Confidence, Finding, ModuleResult, ScanContext, Severity
 from hacker_soft.core.module import ScannerModule
 from hacker_soft.core.net import http_get
 
@@ -29,12 +29,17 @@ class HttpProbeModule(ScannerModule):
             if context.config.active:
                 urls.append(f"http://{host}/")
 
+        seen_urls: set[str] = set()
         with ThreadPoolExecutor(max_workers=16) as pool:
             future_map = {pool.submit(http_get, url, context.config.timeout_seconds): url for url in urls}
             for future in as_completed(future_map):
                 response = future.result()
                 if response.status is None:
                     continue
+                # http:// and https:// often land on the same final URL after a redirect.
+                if response.url in seen_urls:
+                    continue
+                seen_urls.add(response.url)
                 context.live_hosts.add(response.url)
                 context.http_services[response.url] = {
                     "status": response.status,
@@ -76,6 +81,7 @@ class HttpProbeModule(ScannerModule):
                     title="HTTP-заголовки раскрывают технологию или версию",
                     severity=Severity.INFO,
                     confidence=Confidence.HIGH,
+                    category=Category.INVENTORY,
                     target=url,
                     evidence={"server": server, "x-powered-by": powered_by},
                     recommendation="Убери лишнее раскрытие версий и технологий из публичных HTTP-заголовков.",
