@@ -1,0 +1,13 @@
+[project]
+name = "hacker-soft"
+version = "0.1.0"
+description = "Modular defensive external attack-surface scanner for owned assets."
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+hacker-soft = "hacker_soft.cli:main"
+hacker-soft-bot = "hacker_soft.bot:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

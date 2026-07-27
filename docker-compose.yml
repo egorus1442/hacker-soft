@@ -1,0 +1,20 @@
+services:
+  bot:
+    build: .
+    command: python -m hacker_soft.bot --allow-anyone
+    environment:
+      HACKER_SOFT_TG_TOKEN: ${HACKER_SOFT_TG_TOKEN:?Set HACKER_SOFT_TG_TOKEN}
+      HACKER_SOFT_TG_PROXY: ${HACKER_SOFT_TG_PROXY:-}
+    volumes:
+      - ./hacker_soft:/app/hacker_soft:ro
+      - ./reports:/app/reports
+    restart: unless-stopped
+
+  scan:
+    build: .
+    profiles:
+      - cli
+    entrypoint: ["python", "-m", "hacker_soft"]
+    command: ["pentest", "example.com", "--out", "reports/docker-pentest"]
+    volumes:
+      - ./reports:/app/reports
