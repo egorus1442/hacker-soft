@@ -41,10 +41,8 @@ RUN set -eux; \
     katana -version; \
     nuclei -version
 
-FROM pd-tools AS pd-debug
-
 RUN set -eux; \
-    nuclei -update-templates -templates-directory /opt/nuclei-templates; \
+    nuclei -update-templates -update-template-dir /opt/nuclei-templates; \
     template_count="$(find /opt/nuclei-templates -name '*.yaml' | wc -l)"; \
     echo "nuclei templates: ${template_count}"; \
     [ "${template_count}" -gt 100 ]
@@ -73,7 +71,7 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates dnsutils libpcap0.8 \
+    && apt-get install -y --no-install-recommends ca-certificates dnsutils libpcap0.8 openssl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=pd-tools /usr/local/bin/subfinder /usr/local/bin/subfinder

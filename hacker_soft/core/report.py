@@ -215,9 +215,11 @@ def render_markdown(
             lines.append(f"- {severity_label(severity)}: `{summary.get(severity, 0)}`")
     else:
         lines.append("- Проблем не найдено.")
-    if document_summary.get("total"):
+    if document_summary:
         lines.extend(["", "## Публичные документы", ""])
-        lines.append(f"- Всего: `{document_summary.get('total', 0)}`")
+        lines.append(f"- Подтверждено документов: `{document_summary.get('total', 0)}`")
+        lines.append(f"- Точно не документы: `{document_summary.get('not_document_total', 0)}`")
+        lines.append(f"- Не удалось проверить: `{document_summary.get('unverified_total', 0)}`")
         lines.append(f"- С чувствительными словами в названии/пути: `{document_summary.get('keyword_matches', 0)}`")
         by_type = document_summary.get("by_type") or {}
         if by_type:
@@ -246,6 +248,14 @@ def render_markdown(
         for item in document_summary.get("documents", []):
             if isinstance(item, dict) and item.get("url"):
                 lines.append(f"- {item['url']}")
+        lines.extend(["", "Не удалось проверить:"])
+        unverified_documents = document_summary.get("unverified_documents") or []
+        if unverified_documents:
+            for item in unverified_documents:
+                if isinstance(item, dict) and item.get("url"):
+                    lines.append(f"- {item['url']} ({item.get('verification_reason', 'unknown')})")
+        else:
+            lines.append("- Нет")
 
     dork_result = next((result for result in results if result.module == "dork_builder"), None)
     if dork_result:
@@ -703,20 +713,33 @@ def render_unverified_dorks_html(result: ModuleResult) -> str:
 
 def get_public_documents_summary(results: list[ModuleResult], output_path: Path | None = None) -> dict:
     documents: dict[str, dict] = {}
+    not_documents: dict[str, dict] = {}
+    unverified_documents: dict[str, dict] = {}
     source_groups: dict[str, dict[str, dict]] = {"site": {}, "dorks": {}}
     for result in results:
         public_documents = result.artifacts.get("public_documents") if result.artifacts else None
-        if not isinstance(public_documents, dict):
-            continue
         group = "dorks" if result.module == "dork_builder" else "site"
-        for item in public_documents.get("documents") or []:
-            if isinstance(item, dict) and item.get("url"):
-                document = dict(item)
-                document["source_group"] = group
-                documents.setdefault(str(item["url"]), document)
-                source_groups[group].setdefault(str(item["url"]), document)
+        if isinstance(public_documents, dict):
+            for item in public_documents.get("documents") or []:
+                if isinstance(item, dict) and item.get("url"):
+                    document = dict(item)
+                    document["source_group"] = group
+                    documents.setdefault(str(item["url"]), document)
+                    source_groups[group].setdefault(str(item["url"]), document)
+        verification = result.artifacts.get("document_verification") if result.artifacts else None
+        if not isinstance(verification, dict):
+            verification = public_documents if isinstance(public_documents, dict) else {}
+        for key, destination in (
+            ("not_documents", not_documents),
+            ("unverified_documents", unverified_documents),
+        ):
+            for item in verification.get(key) or []:
+                if isinstance(item, dict) and item.get("url"):
+                    classified = dict(item)
+                    classified["source_group"] = group
+                    destination.setdefault(str(item["url"]), classified)
 
-    if not documents:
+    if not documents and not not_documents and not unverified_documents:
         return {}
 
     ordered = [documents[url] for url in sorted(documents)]
@@ -737,12 +760,16 @@ def get_public_documents_summary(results: list[ModuleResult], output_path: Path 
         "keyword_matches": len(keyword_matches),
         "sample": keyword_matches[:30] or ordered[:30],
         "documents": ordered,
+        "not_document_total": len(not_documents),
+        "unverified_total": len(unverified_documents),
+        "not_documents": [not_documents[url] for url in sorted(not_documents)],
+        "unverified_documents": [unverified_documents[url] for url in sorted(unverified_documents)],
         "source_groups": {
             "site": [source_groups["site"][url] for url in sorted(source_groups["site"])],
             "dorks": [source_groups["dorks"][url] for url in sorted(source_groups["dorks"])],
         },
-        "checked_total": sum(int((result.artifacts.get("public_documents") or {}).get("checked_total") or 0) for result in results if result.artifacts),
-        "rejected_total": sum(int((result.artifacts.get("public_documents") or {}).get("rejected_total") or 0) for result in results if result.artifacts),
+        "checked_total": len(ordered) + len(not_documents) + len(unverified_documents),
+        "rejected_total": len(not_documents),
     }
     if output_path:
         output_path.write_text(
@@ -758,10 +785,10 @@ def get_public_documents_summary(results: list[ModuleResult], output_path: Path 
 
 def render_documents_html(context: ScanContext, results: list[ModuleResult]) -> str:
     summary = get_public_documents_summary(results, context.config.out_dir / "public-documents-merged.jsonl")
-    if not summary or not summary.get("total"):
+    if not summary:
         return """
         <h2>Публичные документы</h2>
-        <section class="panel"><p class="muted">Автоматический сбор не выделил публичные PDF/Office-документы отдельным списком.</p></section>
+        <section class="panel"><p class="muted">Ссылки, похожие на документы, не найдены.</p></section>
         """
 
     by_type = summary.get("by_type") if isinstance(summary.get("by_type"), dict) else {}
@@ -770,6 +797,8 @@ def render_documents_html(context: ScanContext, results: list[ModuleResult]) -> 
     source_groups = summary.get("source_groups") if isinstance(summary.get("source_groups"), dict) else {}
     site_documents = source_groups.get("site") if isinstance(source_groups.get("site"), list) else []
     dork_documents = source_groups.get("dorks") if isinstance(source_groups.get("dorks"), list) else []
+    not_documents = summary.get("not_documents") if isinstance(summary.get("not_documents"), list) else []
+    unverified_documents = summary.get("unverified_documents") if isinstance(summary.get("unverified_documents"), list) else []
     full_list = summary.get("full_list") if isinstance(summary.get("full_list"), dict) else {}
 
     type_items = "".join(
@@ -796,13 +825,21 @@ def render_documents_html(context: ScanContext, results: list[ModuleResult]) -> 
     site_browser = render_document_browser("site-documents", site_documents, "Документы со страниц сайта")
     dork_browser = render_document_browser("dork-documents", dork_documents, "Документы из дорков", source_label="DORK")
     all_browser = render_document_browser("all-documents", documents, "Все документы")
+    unverified_browser = render_document_browser(
+        "unverified-documents", unverified_documents, "Не удалось проверить"
+    )
+    not_document_browser = render_document_browser(
+        "not-documents", not_documents, "Точно не документы"
+    )
 
     return f"""
     <h2>Публичные документы</h2>
     <section class="panel wide">
-      <p class="muted">Найдены публичные PDF/Office-файлы по ссылкам внутри страниц сайта и поисковой выдаче. Это не ошибка само по себе, но такие файлы часто нужно отдельно проверять на метаданные и лишнюю публикацию.</p>
+      <p class="muted">Ссылки проверены небольшим GET-запросом без изменения исходного URL. Сетевые ошибки и блокировки не считаются доказательством отсутствия документа.</p>
       <section class="summary-blocks" aria-label="Документы по типам">
-        <div class="summary-block"><b>{escape(str(summary.get("total", 0)))}</b><span>Всего документов</span></div>
+        <div class="summary-block"><b>{escape(str(summary.get("total", 0)))}</b><span>Подтверждено документов</span></div>
+        <div class="summary-block"><b>{escape(str(summary.get("not_document_total", 0)))}</b><span>Точно не документы</span></div>
+        <div class="summary-block"><b>{escape(str(summary.get("unverified_total", 0)))}</b><span>Не удалось проверить</span></div>
         <div class="summary-block"><b>{escape(str(len(site_documents)))}</b><span>Со страниц сайта</span></div>
         <div class="summary-block"><b>{escape(str(len(dork_documents)))}</b><span>Через dorks</span></div>
         <div class="summary-block"><b>{escape(str(summary.get("keyword_matches", 0)))}</b><span>Слова риска в URL</span></div>
@@ -820,6 +857,14 @@ def render_documents_html(context: ScanContext, results: list[ModuleResult]) -> 
       <details class="collapsible">
         <summary>Все документы вместе ({escape(str(summary.get("total", 0)))})</summary>
         <div class="collapsible-body">{all_browser}</div>
+      </details>
+      <details class="collapsible" open>
+        <summary>Не удалось проверить ({escape(str(len(unverified_documents)))})</summary>
+        <div class="collapsible-body">{unverified_browser}</div>
+      </details>
+      <details class="collapsible">
+        <summary>Точно не документы ({escape(str(len(not_documents)))})</summary>
+        <div class="collapsible-body">{not_document_browser}</div>
       </details>
       <details class="collapsible">
         <summary>Распределение по хостам</summary>

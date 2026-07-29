@@ -11,7 +11,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from html.parser import HTMLParser
 from pathlib import Path
-from urllib.parse import unquote, urljoin, urlparse, urlunparse, urldefrag
+from urllib.parse import unquote, urljoin, urlparse, urldefrag
 
 from hacker_soft.core.models import Category, Confidence, Finding, ModuleResult, ScanContext, Severity
 from hacker_soft.core.module import ScannerModule
@@ -44,11 +44,21 @@ CLIENT_PROBES = (b"\r\n", b"GET / HTTP/1.0\r\n\r\n")
 NUCLEI_BATCH_SIZE = 15
 NUCLEI_MIN_BATCH_TIMEOUT = 120
 NUCLEI_SEVERITY_PASSES = (("critical-high", "critical,high"), ("medium-low", "medium,low"))
+# Tuned for a mid-quality network path (VPN, cross-border routing to a foreign server,
+# target-side rate limiting): high enough throughput to actually get through the template
+# set on a healthy connection (a full critical+high pass across ~15 hosts is tens of
+# thousands of requests, so single-digit rate-limits never finish inside the batch budget),
+# but still capped and retry-free so a bad connection degrades into more timeouts instead of
+# piling up stalled connections that eat the whole batch without producing output.
+NUCLEI_CONCURRENCY = 15
+NUCLEI_BULK_SIZE = 10
+NUCLEI_RATE_LIMIT = 25
+NUCLEI_REQUEST_TIMEOUT = 8
 KATANA_ENDPOINT_LIMIT = 5000
 NUCLEI_TEMPLATES_ENV = "HACKER_SOFT_NUCLEI_TEMPLATES"
 NUCLEI_TEMPLATE_DIRS = ("/opt/nuclei-templates",)
 NUCLEI_MIN_TEMPLATES = 50
-DOCUMENT_EXTENSIONS = {"pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "rtf", "odt", "ods", "odp", "zip", "rar", "7z"}
+DOCUMENT_EXTENSIONS = {"pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "rtf", "odt", "ods", "odp", "csv", "zip", "rar", "7z"}
 DOCUMENT_CONTENT_TYPES = (
     "application/pdf",
     "application/msword",
@@ -60,6 +70,8 @@ DOCUMENT_CONTENT_TYPES = (
     "application/zip",
     "application/x-rar",
     "application/x-7z-compressed",
+    "text/csv",
+    "application/csv",
 )
 DOCUMENT_MAGIC_PREFIXES = (
     b"%PDF-",
@@ -91,6 +103,17 @@ DOCUMENT_KEYWORDS = {
     "персональн",
     "заявк",
 }
+DOCUMENT_LINK_HINTS = (
+    "/download",
+    "/document",
+    "/documents",
+    "/attachment",
+    "/attachments",
+    "download=",
+    "document=",
+    "filename=",
+    "file=",
+)
 ABSOLUTE_URL_RE = re.compile(r"""https?://[^\\\"' <>\s)]+""", re.IGNORECASE)
 ATTR_URL_RE = re.compile(r"""(?:href|src|data|action)=["']([^"']+)["']""", re.IGNORECASE)
 
@@ -333,6 +356,31 @@ class ProjectDiscoveryModule(ScannerModule):
         for host, ports in confirmed_ports.items():
             context.open_ports.setdefault(host, set()).update(ports)
 
+        # naabu's `-top-ports 100` is a probabilistic TCP-connect sample: on a target that
+        # answers inconsistently between runs (tarpit/firewall/rate limiting), a genuinely
+        # risky port can simply be missing from this run's sample. Probe the known risky
+        # ports directly on every host regardless of what naabu reported, so a finding like
+        # an exposed FTP/DB/RDP port doesn't silently disappear because of sampling noise.
+        watchlist_ports = sorted(RISKY_PORTS)
+        watchlist_targets = {
+            host: [port for port in watchlist_ports if port not in port_details.get(host, set())]
+            for host in hosts
+            if host not in noisy_hosts
+        }
+        watchlist_targets = {host: ports for host, ports in watchlist_targets.items() if ports}
+        watchlist_banner_checks = collect_port_banners(watchlist_targets) if watchlist_targets else {}
+
+        watchlist_confirmed: dict[str, list[int]] = {}
+        for host, ports in watchlist_targets.items():
+            for port in ports:
+                if watchlist_banner_checks.get(host, {}).get(str(port), {}).get("banner_found"):
+                    watchlist_confirmed.setdefault(host, []).append(port)
+                    confirmed_ports.setdefault(host, []).append(port)
+                    banner_checks.setdefault(host, {})[str(port)] = watchlist_banner_checks[host][str(port)]
+                    context.open_ports.setdefault(host, set()).add(port)
+        if watchlist_confirmed:
+            result.artifacts["watchlist_confirmed_ports"] = watchlist_confirmed
+
         confirmed_count = sum(len(ports) for ports in confirmed_ports.values())
         unconfirmed_count = sum(len(ports) for ports in unconfirmed_ports.values())
         result.artifacts["confirmed_ports"] = confirmed_ports
@@ -427,7 +475,10 @@ class ProjectDiscoveryModule(ScannerModule):
                     evidence={
                         "hosts": risky_by_host,
                         "infrastructure": infrastructure,
-                        "note": "Риск выставлен только для портов, где удалось получить баннер/ответ сервиса.",
+                        "note": (
+                            "Риск выставлен только для портов, где удалось получить баннер/ответ сервиса. "
+                            "Известные рискованные порты проверяются напрямую, независимо от выборки naabu."
+                        ),
                     },
                     recommendation="Подтверди владельца сервиса и закрой базы данных, админские и remote-access порты через VPN или allowlist.",
                     explanation="Сканер увидел открытые порты и получил баннер/ответ от сервиса на рискованном порту.",
@@ -496,6 +547,7 @@ class ProjectDiscoveryModule(ScannerModule):
             extract_documents_from_katana(output_file, context.target.domain),
             context,
         )
+        result.artifacts["document_verification"] = document_verification_details(document_summary)
         if document_summary["total"]:
             document_artifact = write_document_artifact(context, document_summary["documents"])
             result.artifacts["public_documents"] = {
@@ -508,6 +560,7 @@ class ProjectDiscoveryModule(ScannerModule):
                 "full_list": document_artifact,
                 "checked_total": document_summary.get("checked_total", document_summary["total"]),
                 "rejected_total": document_summary.get("rejected_total", 0),
+                **document_verification_details(document_summary),
             }
             result.findings.append(
                 Finding(
@@ -577,7 +630,7 @@ class ProjectDiscoveryModule(ScannerModule):
             for pass_name, severity in NUCLEI_SEVERITY_PASSES
             for index, batch in enumerate(host_batches, start=1)
         ]
-        budget = tool_timeout(context, default=900, minimum=300, multiplier=75)
+        budget = tool_timeout(context, default=3600, minimum=300, multiplier=300)
         deadline = time.monotonic() + budget
         batch_timeout = max(NUCLEI_MIN_BATCH_TIMEOUT, budget // max(1, len(plan)))
         if context.logger:
@@ -830,14 +883,14 @@ def add_document_candidate(documents: dict[str, dict[str, str]], url: str | None
     if parsed.scheme not in {"http", "https"} or not is_owned_host(parsed.hostname, domain):
         return
     extension = document_extension(url)
-    if not extension:
+    if not extension and not has_document_link_hint(url):
         return
     canonical = canonical_document_url(url)
     documents.setdefault(
         canonical,
         {
             "url": canonical,
-            "extension": extension,
+            "extension": extension or "unknown",
             "host": urlparse(canonical).netloc,
             "keyword_match": "yes" if has_document_keyword(canonical) else "no",
         },
@@ -856,14 +909,14 @@ def document_extension(url: str) -> str | None:
 
 
 def canonical_document_url(url: str) -> str:
-    parsed = urlparse(url)
-    host = (parsed.hostname or "").lower()
-    if host.startswith("www."):
-        host = host[4:]
-    port = parsed.port
-    netloc = host if port in {None, 80, 443} else f"{host}:{port}"
-    path = unquote(parsed.path)
-    return urlunparse(("https", netloc, path, "", "", ""))
+    # Fragments are client-side only. Everything sent to the server (scheme,
+    # host, path and especially query parameters) must remain untouched.
+    return urldefrag(url)[0]
+
+
+def has_document_link_hint(url: str) -> bool:
+    lower_url = url.lower()
+    return any(hint in lower_url for hint in DOCUMENT_LINK_HINTS)
 
 
 def has_document_keyword(url: str) -> bool:
@@ -900,55 +953,143 @@ def verify_document_summary(summary: dict[str, object], context: ScanContext) ->
     timeout = max(6, min(20, context.config.timeout_seconds))
     max_workers = max(1, min(8, len(documents)))
     verified: dict[str, dict[str, str]] = {}
+    not_documents: dict[str, dict[str, str]] = {}
+    unverified: dict[str, dict[str, str]] = {}
     checked_total = 0
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futures = [pool.submit(verify_document_item, item, timeout) for item in documents if isinstance(item, dict)]
+        futures = {
+            pool.submit(verify_document_item, item, timeout): item
+            for item in documents
+            if isinstance(item, dict)
+        }
         for future in as_completed(futures):
             checked_total += 1
-            item = future.result()
-            if item:
+            original = futures[future]
+            try:
+                item = future.result()
+            except Exception as exc:  # noqa: BLE001 - retain the URL when an individual probe fails.
+                item = {
+                    **original,
+                    "verification_status": "unverified",
+                    "verification_reason": f"probe_error:{type(exc).__name__}",
+                    "verified": "unknown",
+                }
+            status = item.get("verification_status")
+            if status == "confirmed_document":
                 verified[item["url"]] = item
+            elif status == "not_document":
+                not_documents[item["url"]] = item
+            else:
+                unverified[item["url"]] = item
 
     verified_summary = summarize_documents(verified)
     verified_summary["checked_total"] = checked_total
-    verified_summary["rejected_total"] = checked_total - verified_summary["total"]
+    verified_summary["confirmed_total"] = verified_summary["total"]
+    verified_summary["not_document_total"] = len(not_documents)
+    verified_summary["unverified_total"] = len(unverified)
+    verified_summary["not_documents"] = [not_documents[url] for url in sorted(not_documents)]
+    verified_summary["unverified_documents"] = [unverified[url] for url in sorted(unverified)]
+    verified_summary["all_candidates"] = [
+        *verified_summary["documents"],
+        *verified_summary["not_documents"],
+        *verified_summary["unverified_documents"],
+    ]
+    # Kept for report compatibility; only definitive negatives count as rejected.
+    verified_summary["rejected_total"] = len(not_documents)
     return verified_summary
 
 
-def verify_document_item(item: dict[str, str], timeout: int) -> dict[str, str] | None:
+def document_verification_details(summary: dict[str, object]) -> dict[str, object]:
+    return {
+        "checked_total": int(summary.get("checked_total") or 0),
+        "confirmed_total": int(summary.get("confirmed_total") or summary.get("total") or 0),
+        "not_document_total": int(summary.get("not_document_total") or 0),
+        "unverified_total": int(summary.get("unverified_total") or 0),
+        "not_documents": list(summary.get("not_documents") or []),
+        "unverified_documents": list(summary.get("unverified_documents") or []),
+    }
+
+
+def verify_document_item(item: dict[str, str], timeout: int) -> dict[str, str]:
     url = item.get("url", "")
-    response = fetch_document_probe(url, timeout=timeout, method="HEAD")
-    if response["status"] in {405, 403} or (response["status"] or 0) >= 500:
+    response = fetch_document_probe(url, timeout=timeout, method="GET", byte_range="bytes=0-8191")
+    if response["status"] == 416:
         response = fetch_document_probe(url, timeout=timeout, method="GET")
     status = response["status"]
     final_url = response["url"] or url
     content_type = response["content_type"]
-    if status is None or status >= 400:
-        return None
-    if not (is_document_content_type(content_type) or document_extension(final_url)):
-        return None
-
-    sample = fetch_document_probe(final_url, timeout=timeout, method="GET", byte_range="bytes=0-4095")
-    sample_status = sample["status"]
-    if sample_status is None or sample_status >= 400 or not looks_like_document_bytes(sample["body"]):
-        return None
-
-    canonical = canonical_document_url(sample["url"] or final_url)
-    extension = document_extension(canonical)
-    if not extension:
-        return None
-    parsed = urlparse(canonical)
-    verified = {
+    body = response["body"]
+    disposition_name = content_disposition_filename(str(response.get("content_disposition") or ""))
+    detected_extension = (
+        document_extension(url)
+        or document_extension(str(final_url))
+        or document_extension(disposition_name)
+        or document_extension_from_content_type(str(content_type))
+        or document_extension_from_bytes(body)
+    )
+    base = {
         **item,
-        "url": canonical,
-        "extension": extension,
-        "host": parsed.netloc,
-        "status_code": str(sample_status),
-        "content_type": sample["content_type"] or content_type,
-        "verified": "yes",
+        "url": url,
+        "final_url": str(final_url),
+        "extension": detected_extension or item.get("extension") or "unknown",
+        "host": urlparse(url).netloc,
+        "status_code": "" if status is None else str(status),
+        "content_type": str(content_type),
+        "content_disposition_filename": disposition_name,
     }
-    verified["keyword_match"] = "yes" if has_document_keyword(canonical) else "no"
-    return verified
+    base["keyword_match"] = "yes" if has_document_keyword(url) else "no"
+
+    if status is None:
+        return {
+            **base,
+            "verification_status": "unverified",
+            "verification_reason": str(response.get("error") or "request_failed"),
+            "verified": "unknown",
+        }
+    if int(status) >= 400:
+        return {
+            **base,
+            "verification_status": "unverified",
+            "verification_reason": f"http_{status}",
+            "verified": "unknown",
+        }
+
+    html_body = looks_like_html_bytes(body)
+    document_bytes = looks_like_document_bytes(body)
+    csv_bytes = looks_like_csv_bytes(body)
+    document_type = is_document_content_type(str(content_type))
+    if document_bytes or csv_bytes or (document_type and not html_body) or (detected_extension and not html_body):
+        reasons = []
+        if document_bytes:
+            reasons.append("content_signature")
+        if csv_bytes:
+            reasons.append("csv_content")
+        if document_type:
+            reasons.append("content_type")
+        if disposition_name and document_extension(disposition_name):
+            reasons.append("content_disposition")
+        if document_extension(url) or document_extension(str(final_url)):
+            reasons.append("url_extension")
+        return {
+            **base,
+            "verification_status": "confirmed_document",
+            "verification_reason": ",".join(reasons) or "document_signal",
+            "verified": "yes",
+        }
+
+    if html_body or is_html_content_type(str(content_type)) or is_explicit_non_document_type(str(content_type)):
+        return {
+            **base,
+            "verification_status": "not_document",
+            "verification_reason": "html_response" if html_body else "non_document_content_type",
+            "verified": "no",
+        }
+    return {
+        **base,
+        "verification_status": "unverified",
+        "verification_reason": "no_conclusive_document_signal",
+        "verified": "unknown",
+    }
 
 
 def fetch_document_probe(
@@ -968,7 +1109,9 @@ def fetch_document_probe(
                 "url": response.geturl(),
                 "status": response.status,
                 "content_type": response.headers.get("content-type", ""),
+                "content_disposition": response.headers.get("content-disposition", ""),
                 "body": body,
+                "error": "",
             }
     except urllib.error.HTTPError as exc:
         body = exc.read(4096) if method == "GET" else b""
@@ -976,10 +1119,19 @@ def fetch_document_probe(
             "url": url,
             "status": exc.code,
             "content_type": exc.headers.get("content-type", ""),
+            "content_disposition": exc.headers.get("content-disposition", ""),
             "body": body,
+            "error": str(exc),
         }
-    except Exception:
-        return {"url": url, "status": None, "content_type": "", "body": b""}
+    except Exception as exc:
+        return {
+            "url": url,
+            "status": None,
+            "content_type": "",
+            "content_disposition": "",
+            "body": b"",
+            "error": f"{type(exc).__name__}: {exc}",
+        }
 
 
 def is_document_content_type(content_type: str) -> bool:
@@ -990,6 +1142,85 @@ def is_document_content_type(content_type: str) -> bool:
 def looks_like_document_bytes(content: bytes) -> bool:
     sample = content[:16]
     return any(sample.startswith(prefix) for prefix in DOCUMENT_MAGIC_PREFIXES)
+
+
+def looks_like_html_bytes(content: bytes) -> bool:
+    sample = content.lstrip()[:256].lower()
+    return sample.startswith((b"<!doctype html", b"<html", b"<head", b"<body"))
+
+
+def is_html_content_type(content_type: str) -> bool:
+    value = content_type.split(";", 1)[0].strip().lower()
+    return value in {"text/html", "application/xhtml+xml"}
+
+
+def is_explicit_non_document_type(content_type: str) -> bool:
+    value = content_type.split(";", 1)[0].strip().lower()
+    return value.startswith(("image/", "audio/", "video/")) or value in {
+        "application/json",
+        "application/javascript",
+        "text/javascript",
+    }
+
+
+def looks_like_csv_bytes(content: bytes) -> bool:
+    try:
+        text = content[:8192].decode("utf-8-sig")
+    except UnicodeDecodeError:
+        return False
+    lines = [line for line in text.splitlines() if line.strip()][:5]
+    if len(lines) < 2:
+        return False
+    for delimiter in (",", ";", "\t"):
+        counts = [line.count(delimiter) for line in lines]
+        if counts[0] > 0 and len(set(counts)) == 1:
+            return True
+    return False
+
+
+def content_disposition_filename(value: str) -> str:
+    encoded = re.search(r"filename\*\s*=\s*(?:UTF-8'')?([^;]+)", value, re.IGNORECASE)
+    plain = re.search(r'filename\s*=\s*(?:"([^"]+)"|([^;]+))', value, re.IGNORECASE)
+    filename = encoded.group(1) if encoded else ((plain.group(1) or plain.group(2)) if plain else "")
+    return unquote(filename.strip().strip("\"'")) if filename else ""
+
+
+def document_extension_from_content_type(content_type: str) -> str | None:
+    value = content_type.split(";", 1)[0].strip().lower()
+    mappings = (
+        ("application/pdf", "pdf"),
+        ("wordprocessingml", "docx"),
+        ("spreadsheetml", "xlsx"),
+        ("presentationml", "pptx"),
+        ("application/msword", "doc"),
+        ("application/vnd.ms-excel", "xls"),
+        ("application/vnd.ms-powerpoint", "ppt"),
+        ("application/rtf", "rtf"),
+        ("text/csv", "csv"),
+        ("application/csv", "csv"),
+        ("application/zip", "zip"),
+        ("application/x-rar", "rar"),
+        ("application/x-7z-compressed", "7z"),
+    )
+    return next((extension for marker, extension in mappings if marker in value), None)
+
+
+def document_extension_from_bytes(content: bytes) -> str | None:
+    if content.startswith(b"%PDF-"):
+        return "pdf"
+    if content.startswith(b"{\\rtf"):
+        return "rtf"
+    if content.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"):
+        return "doc"
+    if content.startswith((b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08")):
+        return "zip"
+    if content.startswith((b"Rar!\x1a\x07\x00", b"Rar!\x1a\x07\x01\x00")):
+        return "rar"
+    if content.startswith(b"7z\xbc\xaf\x27\x1c"):
+        return "7z"
+    if looks_like_csv_bytes(content):
+        return "csv"
+    return None
 
 
 def write_document_artifact(
@@ -1060,7 +1291,15 @@ def nuclei_args(
         "-silent",
         "-duc",
         "-rate-limit",
-        "25",
+        str(NUCLEI_RATE_LIMIT),
+        "-c",
+        str(NUCLEI_CONCURRENCY),
+        "-bulk-size",
+        str(NUCLEI_BULK_SIZE),
+        "-timeout",
+        str(NUCLEI_REQUEST_TIMEOUT),
+        "-retries",
+        "0",
         "-elog",
         str(error_log),
         "-tlog",

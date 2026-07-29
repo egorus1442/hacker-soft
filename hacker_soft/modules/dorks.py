@@ -10,6 +10,7 @@ from hacker_soft.core.models import Category, Confidence, Finding, ModuleResult,
 from hacker_soft.core.module import ScannerModule
 from hacker_soft.core.net import http_get
 from hacker_soft.modules.projectdiscovery import (
+    document_verification_details,
     has_document_keyword,
     summarize_documents as summarize_public_documents,
     verify_document_summary,
@@ -168,6 +169,7 @@ class DorkBuilderModule(ScannerModule):
             result.artifacts["document_search_results"] = summarize_document_results(context, document_results)
             public_document_summary = build_public_document_summary(document_results)
             verified_summary = verify_document_summary(public_document_summary, context)
+            result.artifacts["document_verification"] = document_verification_details(verified_summary)
             if verified_summary.get("total"):
                 result.artifacts["public_documents"] = {
                     "total": verified_summary["total"],
@@ -184,6 +186,7 @@ class DorkBuilderModule(ScannerModule):
                     "checked_total": verified_summary.get("checked_total", verified_summary["total"]),
                     "rejected_total": verified_summary.get("rejected_total", 0),
                     "source": "current_index_search",
+                    **document_verification_details(verified_summary),
                 }
         if index_errors:
             result.artifacts["index_search_errors"] = index_errors[:20]
@@ -454,13 +457,13 @@ def extract_document_results(search_results: list[dict[str, str]]) -> list[dict[
     for item in search_results:
         url = normalize_result_url(str(item.get("url", "")))
         extension = document_extension(url)
-        if not extension:
+        if not extension and not is_document_search_result(item, url):
             continue
         documents.setdefault(
             canonical_document_url(url),
             {
                 "url": canonical_document_url(url),
-                "extension": extension,
+                "extension": extension or "unknown",
                 "engine": str(item.get("engine", "")),
                 "dork_title": str(item.get("dork_title", "")),
                 "title": str(item.get("title", "")),
@@ -539,10 +542,11 @@ def merge_document_results(*groups: list[dict[str, str]]) -> list[dict[str, str]
     for group in groups:
         for item in group:
             url = normalize_result_url(str(item.get("url", "")))
-            if not document_extension(url):
+            extension = document_extension(url) or str(item.get("extension") or "")
+            if not extension:
                 continue
             canonical = canonical_document_url(url)
-            documents.setdefault(canonical, {**item, "url": canonical, "extension": document_extension(canonical) or item.get("extension", "")})
+            documents.setdefault(canonical, {**item, "url": canonical, "extension": extension})
     return [documents[url] for url in sorted(documents)]
 
 
@@ -550,7 +554,7 @@ def build_public_document_summary(documents: list[dict[str, str]]) -> dict[str, 
     public_documents: dict[str, dict[str, str]] = {}
     for item in documents:
         url = str(item.get("url") or "")
-        extension = document_extension(url)
+        extension = document_extension(url) or str(item.get("extension") or "")
         if not extension:
             continue
         canonical = canonical_document_url(url)
@@ -597,14 +601,23 @@ def document_extension(url: str) -> str | None:
 
 
 def canonical_document_url(url: str) -> str:
-    parsed = urllib.parse.urlparse(url)
-    host = (parsed.hostname or "").lower()
-    if host.startswith("www."):
-        host = host[4:]
-    port = parsed.port
-    netloc = host if port in {None, 80, 443} else f"{host}:{port}"
-    path = urllib.parse.unquote(parsed.path)
-    return urllib.parse.urlunparse(("https", netloc, path, "", "", ""))
+    return urllib.parse.urldefrag(url)[0]
+
+
+def is_document_search_result(item: dict[str, str], url: str) -> bool:
+    query = str(item.get("query") or "").lower()
+    dork_title = str(item.get("dork_title") or "").lower()
+    title = str(item.get("title") or "").lower()
+    document_query = any(
+        marker in query
+        for extension in DOCUMENT_EXTENSIONS
+        for marker in (f"filetype:{extension}", f"ext:{extension}")
+    )
+    text_hint = any(
+        marker in f"{dork_title} {title} {url.lower()}"
+        for marker in ("документ", "document", "download", "attachment", "скачать")
+    )
+    return document_query or text_hint
 
 
 def write_dork_artifacts(context: ScanContext, dorks: list[dict[str, str]]) -> dict[str, dict[str, object]]:

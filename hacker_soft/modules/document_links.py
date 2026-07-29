@@ -14,6 +14,7 @@ from hacker_soft.core.module import ScannerModule
 from hacker_soft.core.net import USER_AGENT
 from hacker_soft.modules.projectdiscovery import (
     add_document_candidate,
+    document_verification_details,
     empty_document_summary,
     iter_link_candidates,
     summarize_documents,
@@ -44,6 +45,7 @@ class DocumentLinksModule(ScannerModule):
         candidate_summary = collect_document_candidates(input_urls, context)
         write_jsonl(candidates_path, candidate_summary.get("documents", []))
         verified_summary = verify_document_summary(candidate_summary, context)
+        result.artifacts["document_verification"] = document_verification_details(verified_summary)
         result.artifacts["document_link_input"] = artifact_info(input_path)
         result.artifacts["document_link_input_count"] = len(input_urls)
         result.artifacts["document_link_candidates"] = artifact_info(candidates_path)
@@ -63,6 +65,7 @@ class DocumentLinksModule(ScannerModule):
             "checked_total": verified_summary.get("checked_total", candidate_summary.get("total", 0)),
             "rejected_total": verified_summary.get("rejected_total", 0),
             "source": "fresh_document_link_check",
+            **document_verification_details(verified_summary),
         }
         result.findings.append(
             Finding(

@@ -24,12 +24,14 @@ from hacker_soft.core.report import flatten_findings, link_href, render_dork_htm
 from hacker_soft.bot import parse_domain_request, parse_scan_request
 from hacker_soft.scanner import default_modules
 from hacker_soft.modules.ct_subdomains import add_owned_name
-from hacker_soft.modules.dorks import DorkBuilderModule, normalize_result_url
+from hacker_soft.modules.dorks import DorkBuilderModule, extract_document_results, normalize_result_url
 from hacker_soft.modules.exposure_paths import ExposurePathsModule
 from hacker_soft.modules.projectdiscovery import (
     ProjectDiscoveryModule,
+    canonical_document_url,
     extract_documents_from_katana,
     stream_katana_endpoints,
+    verify_document_item,
 )
 from hacker_soft.modules.urlscan import UrlscanModule
 
@@ -134,8 +136,105 @@ class CoreTests(TestCase):
         self.assertEqual(summary["total"], 2)
         self.assertEqual(summary["by_type"], {"doc": 1, "pdf": 1})
         urls = {item["url"] for item in summary["documents"]}
-        self.assertIn("https://example.com/media/File/ContractInfo_Apr14.pdf", urls)
-        self.assertIn("https://example.com/forms/zayavka.doc", urls)
+        self.assertIn("https://www.example.com/media/File/ContractInfo_Apr14.pdf", urls)
+        self.assertIn("https://www.example.com/forms/zayavka.doc", urls)
+
+    def test_document_url_preserves_scheme_www_and_query_parameters(self):
+        url = "http://www.example.com/download?id=123&token=abc#preview"
+
+        self.assertEqual(
+            canonical_document_url(url),
+            "http://www.example.com/download?id=123&token=abc",
+        )
+
+    def test_document_probe_uses_original_get_and_content_disposition(self):
+        original = "https://www.example.com/download?id=123&token=abc"
+        response = {
+            "url": original,
+            "status": 200,
+            "content_type": "application/octet-stream",
+            "content_disposition": 'attachment; filename="report.pdf"',
+            "body": b"%PDF-1.7 sample",
+            "error": "",
+        }
+
+        with patch("hacker_soft.modules.projectdiscovery.fetch_document_probe", return_value=response) as probe:
+            result = verify_document_item({"url": original, "extension": "unknown"}, timeout=10)
+
+        probe.assert_called_once_with(original, timeout=10, method="GET", byte_range="bytes=0-8191")
+        self.assertEqual(result["url"], original)
+        self.assertEqual(result["extension"], "pdf")
+        self.assertEqual(result["verification_status"], "confirmed_document")
+
+    def test_document_probe_classifies_csv_without_extension(self):
+        response = {
+            "url": "https://example.com/export?id=42",
+            "status": 200,
+            "content_type": "text/csv; charset=utf-8",
+            "content_disposition": "",
+            "body": b"name,email\nAlice,a@example.com\nBob,b@example.com\n",
+            "error": "",
+        }
+
+        with patch("hacker_soft.modules.projectdiscovery.fetch_document_probe", return_value=response):
+            result = verify_document_item(
+                {"url": "https://example.com/export?id=42", "extension": "unknown"},
+                timeout=10,
+            )
+
+        self.assertEqual(result["verification_status"], "confirmed_document")
+        self.assertIn("content_type", result["verification_reason"])
+
+    def test_document_probe_keeps_request_errors_unverified(self):
+        original = "https://example.com/report.pdf?token=secret"
+        response = {
+            "url": original,
+            "status": None,
+            "content_type": "",
+            "content_disposition": "",
+            "body": b"",
+            "error": "TimeoutError: timed out",
+        }
+
+        with patch("hacker_soft.modules.projectdiscovery.fetch_document_probe", return_value=response):
+            result = verify_document_item({"url": original, "extension": "pdf"}, timeout=10)
+
+        self.assertEqual(result["url"], original)
+        self.assertEqual(result["verification_status"], "unverified")
+        self.assertEqual(result["verified"], "unknown")
+
+    def test_document_probe_separates_html_from_documents(self):
+        original = "https://example.com/report.pdf"
+        response = {
+            "url": original,
+            "status": 200,
+            "content_type": "text/html",
+            "content_disposition": "",
+            "body": b"<!doctype html><html><body>Login</body></html>",
+            "error": "",
+        }
+
+        with patch("hacker_soft.modules.projectdiscovery.fetch_document_probe", return_value=response):
+            result = verify_document_item({"url": original, "extension": "pdf"}, timeout=10)
+
+        self.assertEqual(result["verification_status"], "not_document")
+
+    def test_dork_document_candidate_keeps_extensionless_download_url(self):
+        url = "https://example.com/download?id=123&token=abc"
+
+        documents = extract_document_results(
+            [
+                {
+                    "url": url,
+                    "query": "site:example.com filetype:pdf",
+                    "dork_title": "PDF-документы",
+                    "title": "Скачать отчет",
+                }
+            ]
+        )
+
+        self.assertEqual(documents[0]["url"], url)
+        self.assertEqual(documents[0]["extension"], "unknown")
 
     def test_report_hides_dorks_without_auto_results(self):
         result = ModuleResult(
@@ -326,6 +425,42 @@ class CoreTests(TestCase):
             link_href(url),
             "https://www.example.com/upload/%D0%9F%D1%80%D0%BE%D1%82%D0%BE%D0%BA%D0%BE%D0%BB%20%D0%BE%D1%82%D0%BA%D1%80%D1%8B%D1%82%D0%B8%D1%8F%20%D0%B4%D0%BE%D1%81%D1%82%D1%83%D0%BF%D0%B0.pdf",
         )
+
+    def test_report_keeps_unverified_document_links_separate(self):
+        with TemporaryDirectory() as tmp:
+            context = ScanContext(
+                target=Target(raw="example.com", domain="example.com"),
+                config=ScanConfig(out_dir=Path(tmp)),
+            )
+            url = "https://www.example.com/download?id=123&token=abc"
+            result = ModuleResult(
+                module="dork_builder",
+                artifacts={
+                    "document_verification": {
+                        "checked_total": 1,
+                        "confirmed_total": 0,
+                        "not_document_total": 0,
+                        "unverified_total": 1,
+                        "not_documents": [],
+                        "unverified_documents": [
+                            {
+                                "url": url,
+                                "extension": "unknown",
+                                "verification_status": "unverified",
+                                "verification_reason": "request_failed",
+                            }
+                        ],
+                    }
+                },
+            )
+
+            html = render_html(context, [result], [], Counter())
+            markdown = render_markdown(context, [result], [], Counter())
+
+        self.assertIn("Не удалось проверить (1)", html)
+        self.assertIn("download?id=123&amp;token=abc", html)
+        self.assertIn("Не удалось проверить: `1`", markdown)
+        self.assertIn(url, markdown)
 
     def test_report_explains_tool_errors_without_progress_noise(self):
         context = ScanContext(

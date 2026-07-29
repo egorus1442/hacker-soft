@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 from hacker_soft.core.models import Category, Confidence, Finding, ModuleResult, ScanContext, Severity
 from hacker_soft.core.module import ScannerModule
@@ -22,38 +21,42 @@ class AmassModule(ScannerModule):
             result.artifacts["skipped"] = "требуется --with-tools"
             return result
 
-        output_file = context.config.out_dir / "amass-hosts.txt"
         context.config.out_dir.mkdir(parents=True, exist_ok=True)
         budget_minutes = AMASS_BUDGET_MINUTES
-        args = [
+        domain = context.target.domain
+
+        # amass v5 dropped `-o`: `enum` only writes to a local asset graph now, and
+        # results have to be pulled back out with a separate `subs` call.
+        enum_args = [
             "amass",
             "enum",
             "-passive",
             "-nocolor",
             "-silent",
             "-d",
-            context.target.domain,
-            "-o",
-            str(output_file),
+            domain,
             "-timeout",
             str(budget_minutes),
         ]
-        timeout = budget_minutes * 60 + 30
-        code, stdout, stderr = run_tool(args, timeout=timeout, logger=context.logger)
-        if code == 127:
+        enum_timeout = budget_minutes * 60 + 30
+        enum_code, _enum_stdout, enum_stderr = run_tool(enum_args, timeout=enum_timeout, logger=context.logger)
+        if enum_code == 127:
             result.errors.append("amass не найден")
             return result
 
-        hosts = collect_amass_hosts(stdout, output_file, context.target.domain)
-        result.artifacts["amass_output"] = {
-            "path": str(output_file),
-            "exists": output_file.exists(),
-            "bytes": output_file.stat().st_size if output_file.exists() else 0,
-        }
+        subs_args = ["amass", "subs", "-names", "-nocolor", "-d", domain]
+        subs_code, subs_stdout, subs_stderr = run_tool(subs_args, timeout=60, logger=context.logger)
+        if subs_code == 127:
+            result.errors.append("amass subs не найден")
+            return result
+
+        hosts = collect_amass_hosts(subs_stdout, domain)
+        result.artifacts["amass_subs_exit_code"] = subs_code
         if not hosts:
             # Amass prints a progress bar into stderr, so an empty run must not look like a crash.
-            result.artifacts["amass_status"] = "failed" if code not in {0, 124} else "no_data"
-            result.artifacts["amass_stderr_sample"] = strip_progress_noise(stderr)[:300]
+            result.artifacts["amass_status"] = "failed" if enum_code not in {0, 124} else "no_data"
+            sample = strip_progress_noise(enum_stderr)[:300] or strip_progress_noise(subs_stderr)[:300]
+            result.artifacts["amass_stderr_sample"] = sample
             return result
         before = len(context.subdomains)
         context.subdomains.update(hosts)
@@ -80,15 +83,9 @@ class AmassModule(ScannerModule):
         return result
 
 
-def collect_amass_hosts(stdout: str, output_file: Path, domain: str) -> set[str]:
-    text = stdout
-    if output_file.exists():
-        try:
-            text += "\n" + output_file.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            pass
+def collect_amass_hosts(stdout: str, domain: str) -> set[str]:
     hosts: set[str] = set()
-    for line in text.splitlines():
+    for line in stdout.splitlines():
         candidate = line.strip().split()[0] if line.strip() else ""
         if is_owned_host(candidate, domain):
             hosts.add(candidate.lower().strip("."))

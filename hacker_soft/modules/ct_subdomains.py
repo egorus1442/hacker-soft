@@ -138,7 +138,7 @@ def fetch_certspotter_names(domain: str, logger: ScanLogger | None) -> set[str]:
         if after:
             params["after"] = after
         url = "https://api.certspotter.com/v1/issuances?" + urllib.parse.urlencode(params)
-        rows = fetch_with_log("certspotter", domain, url, timeout=10, logger=logger, attempts=1, page=page + 1)
+        rows = fetch_with_log("certspotter", domain, url, timeout=10, logger=logger, attempts=2, page=page + 1)
         if not isinstance(rows, list) or not rows:
             break
         for row in rows:

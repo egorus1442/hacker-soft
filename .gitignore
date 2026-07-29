@@ -13,3 +13,4 @@ reports/
 scan-results/
 tmp/
 .env
+*.log
